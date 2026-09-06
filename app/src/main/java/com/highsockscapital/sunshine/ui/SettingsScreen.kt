@@ -110,7 +110,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Brush
@@ -194,10 +193,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.highsockscapital.sunshine.termux.TermuxSetupState
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurface
-import com.highsockscapital.sunshine.ui.theme.SunshineOutline
-import com.highsockscapital.sunshine.ui.theme.SunshineOnPrimary
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurfaceVariant
-import com.highsockscapital.sunshine.ui.theme.SunshinePrimary
 import com.highsockscapital.sunshine.ui.theme.SunshineScrim
 import com.highsockscapital.sunshine.ui.theme.SunshineSettingsBackground
 import com.highsockscapital.sunshine.ui.theme.SunshineSurface
@@ -1847,7 +1843,7 @@ private fun TokenBarChart(points: List<DailyTokenUsage>) {
                         .fillMaxWidth()
                         .height((18 + 96 * fraction).dp)
                         .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
-                        .background(SunshinePrimary.copy(alpha = 0.18f + 0.44f * fraction)),
+                        .background(SettingsAccentColor.copy(alpha = 0.18f + 0.44f * fraction)),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -2050,7 +2046,7 @@ private fun SpeedBarChart(points: List<SpeedSample>) {
                         .fillMaxWidth()
                         .height((18 + 96 * fraction).dp)
                         .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
-                        .background(SunshinePrimary.copy(alpha = 0.18f + 0.44f * fraction)),
+                        .background(SettingsAccentColor.copy(alpha = 0.18f + 0.44f * fraction)),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -2630,8 +2626,8 @@ private fun DefaultModelsPage(
                     checked = autoCompactEnabled,
                     onCheckedChange = onAutoCompactEnabledChange,
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = SunshineOnPrimary,
-                        checkedTrackColor = SunshinePrimary,
+                        checkedThumbColor = SettingsAccentOnColor,
+                        checkedTrackColor = SettingsAccentColor,
                     ),
                 )
             }
@@ -2878,7 +2874,7 @@ private fun ModelSelectionSearchField(
                 .weight(1f)
                 .settingsBringIntoViewOnFocus(),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = SunshineOnSurface),
-            cursorBrush = SolidColor(SunshinePrimary),
+            cursorBrush = SolidColor(SettingsAccentColor),
             singleLine = true,
             decorationBox = { innerTextField ->
                 Box {
@@ -2936,7 +2932,7 @@ private fun ModelSelectionListRow(
         Icon(
             imageVector = Icons.Rounded.Check,
             contentDescription = null,
-            tint = if (selected) SunshinePrimary else Color.Transparent,
+            tint = if (selected) SettingsAccentColor else Color.Transparent,
             modifier = Modifier.size(22.dp),
         )
     }
@@ -4032,8 +4028,8 @@ private fun AddSkillPage(
                     onClick = { selectedTab = index },
                     selected = selectedTab == index,
                     colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SunshinePrimary,
-                        activeContentColor = Color.White,
+                        activeContainerColor = SettingsAccentColor,
+                        activeContentColor = SettingsAccentOnColor,
                         inactiveContainerColor = SunshineSurfaceHigh,
                         inactiveContentColor = SunshineOnSurface,
                     ),
@@ -4139,7 +4135,7 @@ private fun AddSkillPage(
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp,
-                            color = SunshinePrimary,
+                            color = SettingsAccentColor,
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(stringResource(R.string.settings_installing), color = SunshineOnSurfaceVariant)
@@ -4198,7 +4194,7 @@ private fun NativeModStatusCard(
                     Icons.Rounded.Code
                 },
                 contentDescription = null,
-                tint = if (safeMode) Color(0xFFFFB020) else SunshinePrimary,
+                tint = if (safeMode) Color(0xFFFFB020) else SettingsAccentColor,
                 modifier = Modifier.size(22.dp),
             )
             Text(
@@ -4423,8 +4419,8 @@ private fun PiExtensionsPage(
                     onClick = { selectedTab = index },
                     selected = selectedTab == index,
                     colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SunshinePrimary,
-                        activeContentColor = SunshineOnPrimary,
+                        activeContainerColor = SettingsAccentColor,
+                        activeContentColor = SettingsAccentOnColor,
                         inactiveContainerColor = SunshineSurfaceHigh,
                         inactiveContentColor = SunshineOnSurface,
                     ),
@@ -4447,7 +4443,7 @@ private fun PiExtensionsPage(
                         CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
                             strokeWidth = 2.dp,
-                            color = SunshinePrimary,
+                            color = SettingsAccentColor,
                         )
                         Spacer(Modifier.width(12.dp))
                         Text(
@@ -4517,7 +4513,7 @@ private fun PiExtensionsPage(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(22.dp),
                                 strokeWidth = 2.dp,
-                                color = SunshinePrimary,
+                                color = SettingsAccentColor,
                             )
                             Spacer(Modifier.width(12.dp))
                             Text(
@@ -4688,7 +4684,7 @@ private fun PiPackageDetailPage(
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         strokeWidth = 2.dp,
-                        color = SunshinePrimary,
+                        color = SettingsAccentColor,
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
@@ -4719,7 +4715,7 @@ private fun PiPackageDetailPage(
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(22.dp),
                                     strokeWidth = 2.dp,
-                                    color = SunshinePrimary,
+                                    color = SettingsAccentColor,
                                 )
                             } else {
                                 SettingsActionButton(
@@ -4792,7 +4788,7 @@ private fun PiPackageDetailPage(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(22.dp),
                                 strokeWidth = 2.dp,
-                                color = SunshinePrimary,
+                                color = SettingsAccentColor,
                             )
                             Spacer(Modifier.width(10.dp))
                             Text(
@@ -4925,7 +4921,7 @@ private fun PiPackageInstallWarningDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp)
-                .border(1.dp, SunshineOutline, RoundedCornerShape(28.dp))
+                .border(1.dp, SettingsBorderColor, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
                 .background(SunshineSurfaceHigh)
                 .padding(20.dp),
@@ -5020,7 +5016,7 @@ private fun InstalledPiExtensionCard(
                     CircularProgressIndicator(
                         modifier = Modifier.size(22.dp),
                         strokeWidth = 2.dp,
-                        color = SunshinePrimary,
+                        color = SettingsAccentColor,
                     )
                 }
                 Switch(
@@ -5028,8 +5024,8 @@ private fun InstalledPiExtensionCard(
                     onCheckedChange = onSetEnabled,
                     enabled = actionsEnabled && !isOperating,
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = SunshineOnPrimary,
-                        checkedTrackColor = SunshinePrimary,
+                        checkedThumbColor = SettingsAccentOnColor,
+                        checkedTrackColor = SettingsAccentColor,
                     ),
                 )
             }
@@ -5591,8 +5587,8 @@ private fun ScheduledTaskEditPage(
                     onClick = { scheduleMode = index },
                     selected = scheduleMode == index,
                     colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SunshinePrimary,
-                        activeContentColor = Color.White,
+                        activeContainerColor = SettingsAccentColor,
+                        activeContentColor = SettingsAccentOnColor,
                         inactiveContainerColor = SunshineSurfaceHigh,
                         inactiveContentColor = SunshineOnSurface,
                     ),
@@ -5738,8 +5734,8 @@ private fun AddMcpServerPage(
                     onClick = { selectedTab = index },
                     selected = selectedTab == index,
                     colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = SunshinePrimary,
-                        activeContentColor = Color.White,
+                        activeContainerColor = SettingsAccentColor,
+                        activeContentColor = SettingsAccentOnColor,
                         inactiveContainerColor = SunshineSurfaceHigh,
                         inactiveContentColor = SunshineOnSurface,
                     ),
@@ -6326,7 +6322,7 @@ private fun AgentModeSettingsPage(
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(
                                 if (display.isSunshineDisplay) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.78f)
+                                    SettingsAccentColor.copy(alpha = 0.16f)
                                 } else {
                                     SunshineSettingsBackground
                                 }
@@ -6380,7 +6376,7 @@ private fun RootSetupAlreadyConfiguredDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 18.dp)
-                .border(1.dp, SunshineOutline, RoundedCornerShape(28.dp))
+                .border(1.dp, SettingsBorderColor, RoundedCornerShape(28.dp))
                 .clip(RoundedCornerShape(28.dp))
                 .background(SunshineSurfaceHigh)
                 .padding(20.dp),
@@ -6481,7 +6477,7 @@ private fun RootSetupProgressPage(
                         CircularProgressIndicator(
                             modifier = Modifier.size(34.dp),
                             strokeWidth = 3.dp,
-                            color = SunshinePrimary,
+                            color = SettingsAccentColor,
                         )
                     } else {
                         Icon(
@@ -6593,8 +6589,8 @@ private fun RootSetupProgressStep(
     status: RootSetupProgressStepStatus,
 ) {
     val (containerColor, contentColor) = when (status) {
-        RootSetupProgressStepStatus.Complete -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f) to SunshinePrimary
-        RootSetupProgressStepStatus.Active -> SunshinePrimary.copy(alpha = 0.16f) to SunshinePrimary
+        RootSetupProgressStepStatus.Complete -> SettingsAccentColor.copy(alpha = 0.16f) to SettingsAccentColor
+        RootSetupProgressStepStatus.Active -> SettingsAccentColor.copy(alpha = 0.16f) to SettingsAccentColor
         RootSetupProgressStepStatus.Attention -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.64f) to MaterialTheme.colorScheme.error
         RootSetupProgressStepStatus.Pending -> SunshineSurface to SunshineOnSurfaceVariant
     }
@@ -6652,9 +6648,9 @@ private fun RootSetupProgressStep(
 
 @Composable
 private fun rootSetupProgressAccent(issue: RootSetupIssue): Color = when (issue) {
-    RootSetupIssue.Ready -> SunshinePrimary
+    RootSetupIssue.Ready -> SettingsAccentColor
     RootSetupIssue.Running,
-    RootSetupIssue.Available -> SunshinePrimary
+    RootSetupIssue.Available -> SettingsAccentColor
     RootSetupIssue.PermissionDenied,
     RootSetupIssue.TermuxNotInstalled,
     RootSetupIssue.Failed -> MaterialTheme.colorScheme.error
@@ -6715,7 +6711,7 @@ private fun RootSetupSettingsSection(
                 CircularProgressIndicator(
                     modifier = Modifier.size(18.dp),
                     strokeWidth = 2.dp,
-                    color = SunshinePrimary,
+                                    color = SettingsAccentColor,
                 )
             }
         }
@@ -7345,7 +7341,7 @@ private fun SettingsTopBar(
                     CircularProgressIndicator(
                         modifier = Modifier.size(20.dp),
                         strokeWidth = 2.dp,
-                        color = SunshinePrimary,
+                        color = SettingsAccentColor,
                     )
                 }
             } else if (trailingIcon != null && onTrailingAction != null) {
@@ -7385,7 +7381,7 @@ private fun SettingsCircleButton(
     Box(
         modifier = modifier
             .size(44.dp)
-            .border(1.dp, SunshineOutline, RoundedCornerShape(50))
+            .border(1.dp, SettingsBorderColor, RoundedCornerShape(50))
             .clip(RoundedCornerShape(50))
             .background(if (enabled) SunshineSurface else SunshineSurface.copy(alpha = 0.55f))
             .clickable(enabled = enabled, onClick = onClick),
@@ -7522,8 +7518,8 @@ private fun SubagentCard(
                 checked = agent.enabled,
                 onCheckedChange = onEnabledChange,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = SunshineOnPrimary,
-                    checkedTrackColor = SunshinePrimary,
+                    checkedThumbColor = SettingsAccentOnColor,
+                    checkedTrackColor = SettingsAccentColor,
                 ),
             )
         }
@@ -7659,7 +7655,7 @@ private fun SubagentModelPicker(
                                 Icons.Rounded.RadioButtonUnchecked
                             },
                             contentDescription = null,
-                            tint = if (model == selectedModelId) SunshinePrimary else SunshineOnSurfaceVariant,
+                            tint = if (model == selectedModelId) SettingsAccentColor else SunshineOnSurfaceVariant,
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(Modifier.width(10.dp))

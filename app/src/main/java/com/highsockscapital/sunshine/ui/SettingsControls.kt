@@ -12,8 +12,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,6 +76,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,7 +93,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -131,9 +133,7 @@ import com.highsockscapital.sunshine.data.quickActionLabel
 import com.highsockscapital.sunshine.data.resolveAutomaticModelKey
 import com.highsockscapital.sunshine.termux.TermuxSetupState
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurface
-import com.highsockscapital.sunshine.ui.theme.SunshineOnPrimary
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurfaceVariant
-import com.highsockscapital.sunshine.ui.theme.SunshinePrimary
 import com.highsockscapital.sunshine.ui.theme.SunshineScrim
 import com.highsockscapital.sunshine.ui.theme.SunshineSettingsBackground
 import com.highsockscapital.sunshine.ui.theme.SunshineSettingsIcon
@@ -142,11 +142,18 @@ import com.highsockscapital.sunshine.ui.theme.SunshineSurfaceHigh
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// Flat brutalist settings style: no elevation/shadow anywhere in settings.
+// Crisp dark border + accent, shared by SettingsScreen sub-pages.
+val SettingsBorderColor = Color(0xFF161610)
+val SettingsAccentColor = Color(0xFFFF9E43)
+val SettingsAccentOnColor = Color(0xFF161610)
+
 @Composable
 fun SettingsCardGroup(content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, SettingsBorderColor, RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(SunshineSurface),
     ) {
@@ -315,7 +322,7 @@ internal fun ChatGptTextField(
                 .fillMaxWidth()
                 .settingsBringIntoViewOnFocus(),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = SunshineOnSurface),
-            cursorBrush = SolidColor(SunshinePrimary),
+            cursorBrush = SolidColor(SettingsAccentColor),
             minLines = minLines,
             keyboardOptions = keyboardOptions,
             visualTransformation = if (isSecret && !passwordVisible) {
@@ -407,6 +414,7 @@ internal fun SelectionDropdownField(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .border(1.dp, SettingsBorderColor, RoundedCornerShape(16.dp))
                 .clip(RoundedCornerShape(16.dp))
                 .background(SunshineSettingsBackground)
                 .clickable { expanded = true }
@@ -428,7 +436,11 @@ internal fun SelectionDropdownField(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.background(SunshineSurface),
+            modifier = Modifier
+                .background(SunshineSurface)
+                .border(1.dp, SettingsBorderColor, RoundedCornerShape(16.dp)),
+            shadowElevation = 0.dp,
+            tonalElevation = 0.dp,
         ) {
             Column(Modifier.background(SunshineSurface)) {
                 options.forEach { option ->
@@ -476,7 +488,7 @@ private fun SunshineDropdownMenuItem(
         }
         if (selected) {
             Spacer(Modifier.width(12.dp))
-            Icon(Icons.Rounded.Check, contentDescription = null, tint = SunshinePrimary)
+            Icon(Icons.Rounded.Check, contentDescription = null, tint = SettingsAccentColor)
         }
     }
 }
@@ -487,18 +499,18 @@ internal fun ThemeModeToggle(
     onToggle: () -> Unit,
 ) {
     val trackColor = if (isDark) {
-        MaterialTheme.colorScheme.primaryContainer
+        SettingsAccentColor
     } else {
         SunshineSettingsBackground
     }
     val thumbColor = if (isDark) {
-        MaterialTheme.colorScheme.primary
+        SettingsBorderColor
     } else {
         SunshineSurface
     }
     val icon = if (isDark) Icons.Rounded.DarkMode else Icons.Rounded.WbSunny
     val iconTint = if (isDark) {
-        MaterialTheme.colorScheme.onPrimary
+        SettingsAccentColor
     } else {
         SunshineOnSurfaceVariant
     }
@@ -506,6 +518,7 @@ internal fun ThemeModeToggle(
     Box(
         modifier = Modifier
             .size(width = 68.dp, height = 38.dp)
+            .border(1.dp, SettingsBorderColor, CircleShape)
             .clip(CircleShape)
             .background(trackColor)
             .clickable(onClick = onToggle)
@@ -543,16 +556,26 @@ internal fun SettingsActionButton(
         enabled = enabled && !isLoading,
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, SettingsBorderColor),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            focusedElevation = 0.dp,
+            hoveredElevation = 0.dp,
+            disabledElevation = 0.dp,
+        ),
         colors = ButtonDefaults.buttonColors(
-            containerColor = SunshinePrimary,
-            contentColor = SunshineOnPrimary,
+            containerColor = SettingsAccentColor,
+            contentColor = SettingsAccentOnColor,
+            disabledContainerColor = SettingsAccentColor.copy(alpha = 0.4f),
+            disabledContentColor = SettingsAccentOnColor.copy(alpha = 0.6f),
         ),
     ) {
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,
-                color = SunshineOnPrimary,
+                color = SettingsAccentOnColor,
             )
             Spacer(Modifier.width(8.dp))
         }
@@ -577,6 +600,14 @@ internal fun SettingsSubtleActionButton(
         enabled = enabled,
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, SettingsBorderColor),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            focusedElevation = 0.dp,
+            hoveredElevation = 0.dp,
+            disabledElevation = 0.dp,
+        ),
         colors = ButtonDefaults.buttonColors(
             containerColor = SunshineSurface,
             contentColor = SunshineOnSurface,
@@ -610,6 +641,7 @@ internal fun SmallChipButton(
     val textColor = if (isDestructive) MaterialTheme.colorScheme.error else SunshineOnSurface
     Box(
         modifier = modifier
+            .border(1.dp, SettingsBorderColor, RoundedCornerShape(10.dp))
             .clip(RoundedCornerShape(10.dp))
             .background(
                 if (isDestructive) {
@@ -633,6 +665,7 @@ internal fun ActionPreviewPill(
 ) {
     Row(
         modifier = Modifier
+            .border(1.dp, SettingsBorderColor, RoundedCornerShape(999.dp))
             .clip(RoundedCornerShape(999.dp))
             .background(SunshineSettingsBackground)
             .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -642,7 +675,7 @@ internal fun ActionPreviewPill(
         Icon(
             imageVector = Icons.Rounded.AutoAwesome,
             contentDescription = null,
-            tint = SunshinePrimary,
+            tint = SettingsAccentColor,
             modifier = Modifier.size(14.dp),
         )
         Text(
@@ -687,6 +720,12 @@ internal fun SettingsToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = SettingsBorderColor,
+                checkedTrackColor = SettingsAccentColor,
+                checkedBorderColor = SettingsBorderColor,
+                uncheckedBorderColor = SettingsBorderColor,
+            ),
         )
     }
 }
@@ -698,10 +737,12 @@ internal fun SettingsChoiceRow(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val selectedBackground = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.78f)
+    val selectedBackground = SettingsAccentColor.copy(alpha = 0.16f)
+    val rowBorder = if (selected) SettingsAccentColor else SettingsBorderColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, rowBorder, RoundedCornerShape(14.dp))
             .clip(RoundedCornerShape(14.dp))
             .background(if (selected) selectedBackground else SunshineSettingsBackground)
             .clickable(onClick = onClick)
@@ -725,7 +766,7 @@ internal fun SettingsChoiceRow(
             Icon(
                 imageVector = Icons.Rounded.Check,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = SettingsAccentColor,
                 modifier = Modifier.size(18.dp),
             )
         }
