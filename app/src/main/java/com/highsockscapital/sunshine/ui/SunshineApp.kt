@@ -303,11 +303,17 @@ fun SunshineApp(
         }
     }
 
+    // Onboarding always renders in light mode, regardless of system/user theme.
+    val effectiveThemeMode = if (uiState.currentScreen == AppScreen.Onboarding) {
+        AppThemeMode.Light
+    } else {
+        uiState.settings.themeMode
+    }
     // Status bar matches the window background: dark icons on the cream
     // light theme, light icons in dark theme.
-    val darkTheme = uiState.settings.themeMode == AppThemeMode.Dark ||
+    val darkTheme = effectiveThemeMode == AppThemeMode.Dark ||
         (
-            uiState.settings.themeMode == AppThemeMode.System &&
+            effectiveThemeMode == AppThemeMode.System &&
                 (
                     LocalContext.current.resources.configuration.uiMode and
                         android.content.res.Configuration.UI_MODE_NIGHT_MASK
@@ -340,7 +346,7 @@ fun SunshineApp(
         LocalSunshineExtensionUiController provides extensionController,
     ) {
         SunshineTheme(
-            themeMode = uiState.settings.themeMode,
+            themeMode = effectiveThemeMode,
             language = effectiveLanguage,
         ) {
             Surface(

@@ -7489,6 +7489,18 @@ private fun SubagentCard(
     onFetchModels: (String, (List<String>) -> Unit) -> Unit,
 ) {
     var showModelPicker by rememberSaveable { mutableStateOf(false) }
+    // Hoist the text field state so cursor/selection survive recomposition.
+    // Rebuilding TextFieldValue(agent.apiKeyOverride) on every recompose resets
+    // selection to 0, which breaks backspace/clear/long-press select.
+    var apiKeyField by remember(agent.name) {
+        mutableStateOf(TextFieldValue(agent.apiKeyOverride))
+    }
+    if (apiKeyField.text != agent.apiKeyOverride) {
+        apiKeyField = TextFieldValue(
+            text = agent.apiKeyOverride,
+            selection = androidx.compose.ui.text.TextRange(agent.apiKeyOverride.length),
+        )
+    }
     SettingsCardGroup {
         Row(
             modifier = Modifier
@@ -7564,8 +7576,11 @@ private fun SubagentCard(
             CardDivider()
             ChatGptTextField(
                 label = stringResource(R.string.settings_subagent_api_key_override),
-                value = TextFieldValue(agent.apiKeyOverride),
-                onValueChange = { onApiKeyChanged(it.text) },
+                value = apiKeyField,
+                onValueChange = {
+                    apiKeyField = it
+                    if (it.text != agent.apiKeyOverride) onApiKeyChanged(it.text)
+                },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 isSecret = true,
                 supportingText = stringResource(R.string.settings_subagent_api_key_override_hint),
