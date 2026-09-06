@@ -48,8 +48,6 @@ class SunshineToolExecutor(
                     .toString()
             }
 
-            "sunshine_screen" -> executeScreen(argumentsJson)
-
             "sunshine_runtime_manage" -> executeRuntimeManage(
                 settings = settings,
                 currentRuntimeId = currentRuntimeId,
@@ -125,101 +123,9 @@ class SunshineToolExecutor(
         }.toString()
     }
 
-    private fun executeScreen(argumentsJson: String): String {
-        val service = com.highsockscapital.sunshine.accessibility.SunshineAccessibilityService.instance
-            ?: return JSONObject()
-                .put("ok", false)
-                .put("errmsg", "Sunshine's accessibility engine is off. Enable it in system settings.")
-                .toString()
-
-        val arguments = runCatching { JSONObject(argumentsJson) }.getOrNull()
-            ?: return JSONObject().put("ok", false).put("errmsg", "Invalid JSON arguments.").toString()
-        val action = arguments.optString("action").trim()
-
-        fun ok(extra: JSONObject.() -> Unit = {}): String =
-            JSONObject().put("ok", true).put("action", action).apply(extra).toString()
-
-        fun err(message: String): String =
-            JSONObject().put("ok", false).put("errmsg", message).toString()
-
-        return when (action) {
-            "describe" -> {
-                val lines = service.describeScreen()
-                if (lines.isEmpty()) err("No active window or the service cannot see it yet.")
-                else ok {
-                    put("nodes", lines.size)
-                    put("screen", lines.take(400).joinToString("\n"))
-                    if (lines.size > 400) put("truncated", lines.size - 400)
-                }
-            }
-            "focus" -> {
-                val focused = service.rootInActiveWindow
-                    ?.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
-                ok {
-                    put(
-                        "focused_text",
-                        focused?.text?.toString() ?: JSONObject.NULL,
-                    )
-                    put(
-                        "focused_class",
-                        focused?.className?.toString() ?: JSONObject.NULL,
-                    )
-                }
-            }
-            "tap" -> {
-                val x = arguments.optDouble("x", Double.NaN)
-                val y = arguments.optDouble("y", Double.NaN)
-                if (x.isNaN() || y.isNaN()) {
-                    err("tap requires x and y.")
-                } else {
-                    val okBool = service.tapAt(x.toFloat(), y.toFloat())
-                    ok { put("dispatched", okBool) }
-                }
-            }
-            "swipe" -> {
-                val x1 = arguments.optDouble("x1", Double.NaN)
-                val y1 = arguments.optDouble("y1", Double.NaN)
-                val x2 = arguments.optDouble("x2", Double.NaN)
-                val y2 = arguments.optDouble("y2", Double.NaN)
-                if (x1.isNaN() || y1.isNaN() || x2.isNaN() || y2.isNaN()) {
-                    err("swipe requires x1, y1, x2, y2.")
-                } else {
-                    val duration = arguments.optLong("duration_ms", 300L)
-                    val okBool = service.swipe(
-                        x1.toFloat(), y1.toFloat(),
-                        x2.toFloat(), y2.toFloat(), duration
-                    )
-                    ok { put("dispatched", okBool) }
-                }
-            }
-            "click_text" -> {
-                val query = arguments.optString("text").trim()
-                if (query.isEmpty()) err("click_text requires 'text'.")
-                else ok { put("clicked", service.clickText(query)) }
-            }
-            "click_id" -> {
-                val query = arguments.optString("id").trim()
-                if (query.isEmpty()) err("click_id requires 'id'.")
-                else ok { put("clicked", service.clickViewId(query)) }
-            }
-            "type" -> {
-                val text = arguments.optString("text")
-                ok { put("typed", service.typeIntoFocused(text)) }
-            }
-            "scroll_forward" -> ok { put("scrolled", service.scrollForward()) }
-            "scroll_backward" -> ok { put("scrolled", service.scrollBackward()) }
-            "back" -> ok { put("pressed", service.pressBack()) }
-            "home" -> ok { put("pressed", service.pressHome()) }
-            "recents" -> ok { put("pressed", service.openRecents()) }
-            "notifications" -> ok { put("opened", service.openNotifications()) }
-            else -> err("Unknown sunshine_screen action '$action'.")
-        }
-    }
-
     companion object {
         val hostToolNames: Set<String> = setOf(
             "agent_display",
-            "sunshine_screen",
             *SelfManagementToolNames.toTypedArray(),
         )
 
@@ -239,7 +145,6 @@ class SunshineToolExecutor(
                     ),
                 )
             }
-            put(screenToolDefinition())
             if (agentModeEnabled) put(agentModeToolDefinition())
         }
 
@@ -349,59 +254,12 @@ private fun agentModeToolDefinition(): JSONObject = JSONObject().apply {
     put("execution_mode", "sequential")
 }
 
-private fun screenToolDefinition(): JSONObject = JSONObject().apply {
-    put("name", "sunshine_screen")
-    put(
-        "description",
-        "See and act on whatever is on the device's screen through Sunshine's accessibility engine. " +
-            "Use 'describe' to get the current window's node tree (eyes). " +
-            "Use 'focus' to see which input field has focus. " +
-            "Use 'tap', 'swipe', 'click_text', 'click_id', 'type' to act (hands). " +
-            "Use 'scroll_forward'/'scroll_backward', 'back', 'home', 'recents', 'notifications' to navigate. " +
-            "Sunshine refuses to look at or act on apps in the sensitive blacklist.",
-    )
-    put(
-        "parameters",
-        JSONObject().apply {
-            put("type", "object")
-            put(
-                "properties",
-                JSONObject().apply {
-                    put(
-                        "action",
-                        stringProperty(
-                            "One of: describe, focus, tap, swipe, click_text, click_id, " +
-                                "type, scroll_forward, scroll_backward, back, home, recents, notifications."
-                        )
-                    )
-                    put("x", floatProperty("For tap: screen x coordinate in pixels."))
-                    put("y", floatProperty("For tap: screen y coordinate in pixels."))
-                    put("x1", floatProperty("For swipe: start x."))
-                    put("y1", floatProperty("For swipe: start y."))
-                    put("x2", floatProperty("For swipe: end x."))
-                    put("y2", floatProperty("For swipe: end y."))
-                    put("duration_ms", integerProperty("For swipe: duration in milliseconds (default 300)."))
-                    put("text", stringProperty("For click_text: visible label. For type: text to inject."))
-                    put("id", stringProperty("For click_id: view id suffix, e.g. 'btn_search'."))
-                },
-            )
-            put("required", JSONArray().put("action"))
-            put("additionalProperties", false)
-        },
-    )
-    put("execution_mode", "sequential")
-}
-
 private fun stringProperty(description: String): JSONObject = JSONObject()
     .put("type", "string")
     .put("description", description)
 
 private fun integerProperty(description: String): JSONObject = JSONObject()
     .put("type", "integer")
-    .put("description", description)
-
-private fun floatProperty(description: String): JSONObject = JSONObject()
-    .put("type", "number")
     .put("description", description)
 
 private fun booleanProperty(description: String): JSONObject = JSONObject()
