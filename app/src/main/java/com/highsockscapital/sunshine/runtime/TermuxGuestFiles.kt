@@ -71,7 +71,7 @@ class TermuxGuestFiles(
         // saving one IPC round-trip per read versus wc-then-base64.
         val combined = execute(
             "size=$(wc -c < ${shellQuote(path)} | tr -d '[:space:]'); " +
-                "echo \"SIZE:$size\"; " +
+                "echo \"SIZE:${'$'}size\"; " +
                 "base64 < ${shellQuote(path)} | tr -d '\\n'; echo"
         )
         require(combined.optBoolean("ok")) {
