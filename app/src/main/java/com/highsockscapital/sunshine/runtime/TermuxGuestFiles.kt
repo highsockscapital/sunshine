@@ -29,7 +29,7 @@ class TermuxGuestFiles(
     suspend fun ensureDirectory(path: String) {
         val result = execute("mkdir -p ${shellQuote(path)}")
         require(result.optBoolean("ok")) {
-            result.optString("stderr").ifBlank { "Couldn't create directory: $path" }
+            failureDetail(result, "Couldn't create directory: $path")
         }
     }
 
@@ -53,13 +53,13 @@ class TermuxGuestFiles(
                 )
                 val result = execute("printf '%s' ${shellQuote(chunk)} >> ${shellQuote(temp)}")
                 require(result.optBoolean("ok")) {
-                    result.optString("stderr").ifBlank { "Couldn't write file: $path" }
+                    failureDetail(result, "Couldn't write file: $path")
                 }
                 offset = end
             }
             val decode = execute("base64 -d ${shellQuote(temp)} > ${shellQuote(path)}")
             require(decode.optBoolean("ok")) {
-                decode.optString("stderr").ifBlank { "Couldn't write file: $path" }
+                failureDetail(decode, "Couldn't write file: $path")
             }
         } finally {
             execute("rm -f ${shellQuote(temp)}")
@@ -67,15 +67,28 @@ class TermuxGuestFiles(
     }
 
     suspend fun readFileBytes(path: String, byteLimit: Long = 32L * 1024 * 1024): ByteArray {
-        val sizeResult = execute("wc -c < ${shellQuote(path)}")
-        val size = sizeResult.optString("stdout").trim().toLongOrNull()
+        // Fused into a single RUN_COMMAND: size check + base64 payload come back together,
+        // saving one IPC round-trip per read versus wc-then-base64.
+        val combined = execute(
+            "size=$(wc -c < ${shellQuote(path)} | tr -d '[:space:]'); " +
+                "echo \"SIZE:$size\"; " +
+                "base64 < ${shellQuote(path)} | tr -d '\\n'; echo"
+        )
+        require(combined.optBoolean("ok")) {
+            failureDetail(combined, "Couldn't read file: $path")
+        }
+        val stdout = combined.optString("stdout")
+        val firstNewline = stdout.indexOf('\n')
+        val sizeLine = if (firstNewline < 0) stdout else stdout.substring(0, firstNewline)
+        val size = sizeLine.substringAfter("SIZE:", "").trim().toLongOrNull()
             ?: error("Couldn't read file size: $path")
         require(size <= byteLimit) { "File is too large: $path" }
-        val b64 = execute("base64 < ${shellQuote(path)} | tr -d '\\n'")
-        require(b64.optBoolean("ok")) {
-            b64.optString("stderr").ifBlank { "Couldn't read file: $path" }
+        val payload = if (firstNewline < 0) "" else stdout.substring(firstNewline + 1).trim()
+        if (payload.isBlank()) {
+            if (size == 0L) return ByteArray(0)
+            error("Couldn't read file: $path")
         }
-        return Base64.decode(b64.optString("stdout").trim(), Base64.DEFAULT)
+        return Base64.decode(payload.replace("\\s".toRegex(), ""), Base64.DEFAULT)
     }
 
     /** Copies an APK asset into the Termux home. */
@@ -91,7 +104,20 @@ class TermuxGuestFiles(
     }
 
     companion object {
-        private const val WriteChunkBytes = 192 * 1024
+        // Keep each RUN_COMMAND intent small: large extras get rejected by
+        // startService on some devices (e.g. Samsung), failing the whole write.
+        private const val WriteChunkBytes = 24 * 1024
+
+        /** Prefers stderr, but dispatch-level failures report errmsg/hint instead. */
+        private fun failureDetail(result: JSONObject, fallback: String): String =
+            listOf(
+                result.optString("stderr"),
+                result.optString("errmsg"),
+                result.optString("hint"),
+            ).map { it.trim() }
+                .filter { it.isNotBlank() }
+                .joinToString(separator = " ")
+                .ifBlank { fallback }
 
         fun shellQuote(value: String): String =
             "'" + value.replace("'", "'\"'\"'") + "'"

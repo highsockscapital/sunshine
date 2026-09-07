@@ -25,7 +25,10 @@ import org.json.JSONObject
 private const val MaxWorkspaceDownloadBytes = 32 * 1024 * 1024
 private const val WorkspaceImportChunkBytes = 48 * 1024
 private const val WorkspaceTransferChunkBytes = 6 * 1024
-private const val WorkspaceUploadChunkChars = 64 * 1024
+// Keep each RUN_COMMAND intent small: large extras get rejected by
+// startService on some devices (e.g. Samsung), failing the whole write.
+// 32K b64 chars ~= 24K raw bytes, matching TermuxGuestFiles.WriteChunkBytes.
+private const val WorkspaceUploadChunkChars = 32 * 1024
 private const val MaxAnalyzeInlineBytes = 5 * 1024 * 1024
 private const val WorkspaceImportProgressIntervalMillis = 500L
 private const val WorkspaceHttpUploadBufferBytes = 256 * 1024
@@ -418,6 +421,43 @@ class WorkspaceFileBridge(
     }
 
     suspend fun writeWorkspaceBytes(
+        absolutePath: String,
+        bytes: ByteArray,
+    ): Result<Long> = runCatching {
+        // Prefer a single localhost HTTP fetch from Termux: 1 round-trip with no
+        // base64 inflation, versus N append round-trips for large payloads.
+        // Falls back to chunked base64 when localhost fetch is unavailable.
+        writeWorkspaceBytesOverHttp(
+            absolutePath = absolutePath,
+            bytes = bytes,
+        ).getOrElse {
+            writeWorkspaceBytesOverBase64(
+                absolutePath = absolutePath,
+                bytes = bytes,
+            ).getOrThrow()
+        }
+    }
+
+    private suspend fun writeWorkspaceBytesOverHttp(
+        absolutePath: String,
+        bytes: ByteArray,
+    ): Result<Long> = runCatching {
+        WorkspaceBytesUploadServer(bytes).use { server ->
+            val rawResult = executeUploadCommand(
+                command = buildHttpWorkspaceUploadCommand(
+                    absolutePath = absolutePath,
+                    url = server.url,
+                ),
+                fallbackMessage = "Couldn't stream ${bytes.size} bytes into $absolutePath.",
+                awaitTimeoutMillis = WorkspaceHttpUploadTimeoutMillis,
+            )
+            val serverBytes = server.awaitBytesServed()
+            val values = parseStructuredStdout(rawResult.optString("stdout"))
+            values["bytes_written"]?.toLongOrNull() ?: serverBytes
+        }
+    }
+
+    private suspend fun writeWorkspaceBytesOverBase64(
         absolutePath: String,
         bytes: ByteArray,
     ): Result<Long> = runCatching {
@@ -1084,6 +1124,75 @@ private class WorkspaceHttpUploadServer(
             output.flush()
             maybeEmitProgress(force = true)
             return bytesCopied
+        }
+    }
+}
+
+private class WorkspaceBytesUploadServer(
+    private val bytes: ByteArray,
+) : AutoCloseable {
+    private val token = UUID.randomUUID().toString()
+    private val serverSocket = ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+    private val result = AtomicReference<Result<Long>?>(null)
+    private val worker = thread(
+        name = "sunshine-workspace-bytes-upload",
+        isDaemon = true,
+        start = true,
+    ) {
+        result.set(runCatching { serveOneRequest() })
+        runCatching { serverSocket.close() }
+    }
+
+    val url: String =
+        "http://127.0.0.1:${serverSocket.localPort}/upload/$token"
+
+    fun awaitBytesServed(): Long {
+        worker.join()
+        return result.get()?.getOrThrow()
+            ?: error("Workspace upload server stopped without a result.")
+    }
+
+    override fun close() {
+        runCatching { serverSocket.close() }
+        if (worker.isAlive) {
+            worker.join(1000)
+        }
+    }
+
+    private fun serveOneRequest(): Long {
+        serverSocket.soTimeout = 30_000
+        serverSocket.accept().use { socket ->
+            socket.soTimeout = 30_000
+            val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.ISO_8859_1))
+            val requestLine = reader.readLine().orEmpty()
+            val expectedPath = "/upload/$token"
+            val requestedPath = requestLine.split(' ').getOrNull(1).orEmpty()
+            while (true) {
+                val line = reader.readLine() ?: break
+                if (line.isEmpty()) break
+            }
+            val output = BufferedOutputStream(socket.getOutputStream())
+            if (!requestLine.startsWith("GET ") || requestedPath != expectedPath) {
+                output.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n".toByteArray())
+                output.flush()
+                error("Unexpected workspace upload request.")
+            }
+
+            output.write(
+                (
+                    "HTTP/1.1 200 OK\r\nConnection: close\r\n" +
+                        "Content-Type: application/octet-stream\r\n" +
+                        "Content-Length: ${bytes.size}\r\n\r\n"
+                    ).toByteArray()
+            )
+            var offset = 0
+            while (offset < bytes.size) {
+                val end = minOf(offset + WorkspaceHttpUploadBufferBytes, bytes.size)
+                output.write(bytes, offset, end - offset)
+                offset = end
+            }
+            output.flush()
+            return bytes.size.toLong()
         }
     }
 }
