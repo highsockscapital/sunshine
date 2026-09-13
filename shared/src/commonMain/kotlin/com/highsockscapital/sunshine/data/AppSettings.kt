@@ -154,18 +154,8 @@ data class AppSettings(
     val onboardingSeenVersion: Int = 0,
     val onboardingCompletedVersion: Int = 0,
     val privacyPolicyAccepted: Boolean = false,
-    val lastUpdateCheckAtMillis: Long = 0L,
     val autoCompactEnabled: Boolean = true,
     val autoCompactThresholdPercent: Int = 85,
-    val subagentsSharedOpenRouterApiKey: String = "",
-    val subagentConfigs: Map<String, SubagentConfig> = emptyMap(),
-)
-
-@Serializable
-data class SubagentConfig(
-    val enabled: Boolean = true,
-    val modelId: String = "",
-    val apiKeyOverride: String = "",
 )
 
 @Serializable
@@ -203,7 +193,6 @@ const val MinOldCommandHistoryRetentionHours = 1
 const val MaxOldCommandHistoryRetentionHours = 168
 private const val MinLlmInactivityReconnectTimeoutSeconds = 30
 private const val MaxLlmInactivityReconnectTimeoutSeconds = 3600
-const val OnboardingStarterPrompt = "Hi"
 const val SunshineWebsiteUrl = "https://sunshine.highsockscapital.com"
 const val SunshineGitHubUrl = "https://github.com/highsockscapital/Sunshine"
 const val SunshinePrivacyPolicyUrl = "https://github.com/highsockscapital/Sunshine/wiki/Privacy-Policy"

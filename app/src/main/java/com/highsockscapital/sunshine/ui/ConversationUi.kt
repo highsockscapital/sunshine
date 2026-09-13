@@ -26,7 +26,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.Image
@@ -45,7 +44,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
@@ -64,8 +62,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -78,16 +74,13 @@ import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Compress
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -106,17 +99,13 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.draw.BlurredEdgeTreatment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -125,24 +114,17 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -150,7 +132,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
@@ -158,26 +139,22 @@ import androidx.compose.ui.window.PopupProperties
 import androidx.core.graphics.PathParser
 import com.highsockscapital.sunshine.R
 import com.highsockscapital.sunshine.data.InstalledSkill
-import com.highsockscapital.sunshine.data.AppLanguage
 import com.highsockscapital.sunshine.data.AgentModeDisplayState
 import com.highsockscapital.sunshine.data.McpServerConfig
 import com.highsockscapital.sunshine.data.McpTransportConfig
 import com.highsockscapital.sunshine.data.ModelCatalogInfo
 import com.highsockscapital.sunshine.data.PendingSessionInput
 import com.highsockscapital.sunshine.data.ProviderModelOption
-import com.highsockscapital.sunshine.data.SessionExecutionState
 import com.highsockscapital.sunshine.data.SessionFollowUpMode
 import com.highsockscapital.sunshine.data.quickActionLabel
 import com.highsockscapital.sunshine.data.thinkingCatalogKey
 import com.highsockscapital.sunshine.termux.TermuxSetupState
-import com.highsockscapital.sunshine.platform.PlatformWebView
 import com.highsockscapital.sunshine.ui.theme.SunshineBackground
 import com.highsockscapital.sunshine.ui.theme.SunshineBackgroundGradientTop
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurface
 import com.highsockscapital.sunshine.ui.theme.SunshineOutline
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurfaceVariant
 import com.highsockscapital.sunshine.ui.theme.SunshinePrimary
-import com.highsockscapital.sunshine.ui.theme.SunshineScrim
 import com.highsockscapital.sunshine.ui.theme.SunshineSurface
 import com.highsockscapital.sunshine.ui.theme.SunshineSurfaceHigh
 import com.highsockscapital.sunshine.ui.theme.SunshineSurfaceHigher
@@ -327,7 +304,6 @@ fun ConversationScreen(
     allowRootImageRead: Boolean = false,
     isEditing: Boolean,
     termuxSetupState: TermuxSetupState,
-    showStarterPromptHint: Boolean,
     showTermuxSetupNotice: Boolean,
     onInputChanged: (String) -> Unit,
     onModelSelected: (String, (Boolean) -> Unit) -> Unit,
@@ -364,7 +340,6 @@ fun ConversationScreen(
     onDetachAgentModePreviewSurface: (Surface) -> Unit,
     onPauseGeneration: () -> Unit,
     onDismissTermuxSetupNotice: () -> Unit,
-    onDismissStarterPromptHint: () -> Unit,
     isSending: Boolean,
 ) {
     val listState = rememberSaveable(
@@ -760,7 +735,6 @@ fun ConversationScreen(
                 isEditing = isEditing,
                 termuxSetupState = termuxSetupState,
                 isSending = isSending,
-                showStarterPromptHint = showStarterPromptHint,
                 showTermuxSetupNotice = showTermuxSetupNotice,
                 compactSuggestionText = compactSuggestionText,
                 onValueChange = onInputChanged,
@@ -780,7 +754,6 @@ fun ConversationScreen(
                 onRefreshTermuxSetup = onRefreshTermuxSetup,
                 onPauseGeneration = onPauseGeneration,
                 onDismissTermuxSetupNotice = onDismissTermuxSetupNotice,
-                onDismissStarterPromptHint = onDismissStarterPromptHint,
                 onFocusChanged = { composerFocused = it },
                 onSend = onSend,
                 onQueueFollowUp = onQueueFollowUp,
@@ -1442,23 +1415,6 @@ private fun titleModelToken(token: String): String {
     }
 }
 
-@Composable
-private fun ConversationEmptyState(
-    modifier: Modifier = Modifier,
-    inputFocused: Boolean,
-    onStarterPromptSelected: (String) -> Unit,
-) {
-    SunshineConversationEmptyState(
-        modifier = modifier,
-        welcomeLabel = stringResource(R.string.chat_welcome_help),
-        analyzeImageLabel = stringResource(R.string.chat_analyze_image_chip),
-        codeLabel = stringResource(R.string.chat_code_chip),
-        helpWriteLabel = stringResource(R.string.chat_help_me_write_chip),
-        summarizeFileLabel = stringResource(R.string.chat_summarize_file_chip),
-        inputFocused = inputFocused,
-        onStarterPromptSelected = onStarterPromptSelected,
-    )
-}
 
 @Composable
 private fun ConversationThinkingIndicator() {
@@ -2168,7 +2124,6 @@ private fun ConversationComposerOverlay(
     isEditing: Boolean,
     termuxSetupState: TermuxSetupState,
     isSending: Boolean,
-    showStarterPromptHint: Boolean,
     showTermuxSetupNotice: Boolean,
     compactSuggestionText: String,
     onValueChange: (String) -> Unit,
@@ -2188,7 +2143,6 @@ private fun ConversationComposerOverlay(
     onRefreshTermuxSetup: () -> Unit,
     onPauseGeneration: () -> Unit,
     onDismissTermuxSetupNotice: () -> Unit,
-    onDismissStarterPromptHint: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
     onSend: () -> Unit,
     onQueueFollowUp: () -> Unit,
@@ -2234,7 +2188,6 @@ private fun ConversationComposerOverlay(
                     isEditing = isEditing,
                     termuxSetupState = termuxSetupState,
                     isSending = isSending,
-                    showStarterPromptHint = showStarterPromptHint,
                     showTermuxSetupNotice = showTermuxSetupNotice,
                     compactSuggestionText = compactSuggestionText,
                     onValueChange = onValueChange,
@@ -2254,7 +2207,6 @@ private fun ConversationComposerOverlay(
                     onRefreshTermuxSetup = onRefreshTermuxSetup,
                     onPauseGeneration = onPauseGeneration,
                     onDismissTermuxSetupNotice = onDismissTermuxSetupNotice,
-                    onDismissStarterPromptHint = onDismissStarterPromptHint,
                     onFocusChanged = onFocusChanged,
                     onSend = onSend,
                     onQueueFollowUp = onQueueFollowUp,
@@ -2283,7 +2235,6 @@ private fun ConversationComposerBar(
     isEditing: Boolean,
     termuxSetupState: TermuxSetupState,
     isSending: Boolean,
-    showStarterPromptHint: Boolean,
     showTermuxSetupNotice: Boolean,
     compactSuggestionText: String,
     onValueChange: (String) -> Unit,
@@ -2303,7 +2254,6 @@ private fun ConversationComposerBar(
     onRefreshTermuxSetup: () -> Unit,
     onPauseGeneration: () -> Unit,
     onDismissTermuxSetupNotice: () -> Unit,
-    onDismissStarterPromptHint: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
     onSend: () -> Unit,
     onQueueFollowUp: () -> Unit,
@@ -2464,15 +2414,6 @@ private fun ConversationComposerBar(
                 onInstallTermux = onInstallTermux,
                 onRefresh = onRefreshTermuxSetup,
                 onDismiss = onDismissTermuxSetupNotice,
-            )
-        }
-        if (showStarterPromptHint) {
-            SurfaceNotice(
-                title = stringResource(R.string.chat_first_prompt_ready_title),
-                subtitle = stringResource(R.string.chat_first_prompt_ready_subtitle),
-                actionLabel = stringResource(R.string.common_hide),
-                onAction = onDismissStarterPromptHint,
-                actionEnabled = true,
             )
         }
         if (isEditing) {

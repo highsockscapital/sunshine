@@ -163,8 +163,6 @@
     <string name="chat_reasoning_effort_high">بالا</string>
     <string name="chat_reasoning_effort_xhigh">X بالا</string>
     <string name="chat_reasoning_effort_max">حداکثر</string>
-    <string name="chat_first_prompt_ready_title">اولین درخواست شما آماده است</string>
-    <string name="chat_first_prompt_ready_subtitle">برای آزمایش اتر روی ارسال ضربه بزنید.</string>
     <string name="chat_editing_earlier_message_title">در حال ویرایش پیام قبلی</string>
     <string name="chat_editing_earlier_message_subtitle">ارسال جایگزین پاسخ هایی می شود که بعد از آن آمده است.</string>
     <string name="chat_agent_mode_virtual_display">نمایش مجازی Agent Mode</string>

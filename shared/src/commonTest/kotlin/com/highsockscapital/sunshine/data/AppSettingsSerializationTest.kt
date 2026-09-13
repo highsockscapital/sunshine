@@ -28,7 +28,6 @@ class AppSettingsSerializationTest {
             onboardingSeenVersion = CurrentOnboardingVersion,
             onboardingCompletedVersion = CurrentOnboardingVersion,
             privacyPolicyAccepted = true,
-            lastUpdateCheckAtMillis = 1234L,
         )
 
         assertEquals(settings, parseAppSettings(serializeAppSettings(settings)))

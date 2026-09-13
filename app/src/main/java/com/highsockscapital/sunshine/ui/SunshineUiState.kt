@@ -302,7 +302,6 @@ data class SunshineUiState(
     val isFetchingModels: Boolean = false,
     val providerAuthState: PiProviderAuthState = PiProviderAuthState(),
     val piCoreSetupState: PiCoreSetupState = PiCoreSetupState(),
-    val showStarterPromptHint: Boolean = false,
     val awaitingFollowUpTour: Boolean = false,
     val showFollowUpTourCard: Boolean = false,
     val agentModeDisplayState: AgentModeDisplayState = AgentModeDisplayState(),

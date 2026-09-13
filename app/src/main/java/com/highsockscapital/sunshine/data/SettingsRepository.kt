@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -139,50 +138,10 @@ class SettingsRepository(
             defaultSelectedSkillIds = parseStringArray(
                 preferences[DEFAULT_SELECTED_SKILL_IDS].orEmpty()
             ),
-            subagentsSharedOpenRouterApiKey =
-                preferences[SUBAGENTS_SHARED_OPENROUTER_API_KEY].orEmpty(),
-            subagentConfigs = parseSubagentConfigs(
-                preferences[SUBAGENT_CONFIGS_JSON].orEmpty()
-            ),
             onboardingSeenVersion = preferences[ONBOARDING_SEEN_VERSION] ?: 0,
             onboardingCompletedVersion = preferences[ONBOARDING_COMPLETED_VERSION] ?: 0,
             privacyPolicyAccepted = preferences[PRIVACY_POLICY_ACCEPTED] ?: false,
-            lastUpdateCheckAtMillis = preferences[LAST_UPDATE_CHECK_AT_MILLIS] ?: 0L,
         )
-    }
-
-    private fun parseSubagentConfigs(raw: String): Map<String, SubagentConfig> {
-        if (raw.isBlank()) return emptyMap()
-        return runCatching {
-            val json = JSONObject(raw)
-            val out = mutableMapOf<String, SubagentConfig>()
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val entry = json.optJSONObject(key) ?: continue
-                out[key] = SubagentConfig(
-                    enabled = entry.optBoolean("enabled", true),
-                    modelId = entry.optString("modelId"),
-                    apiKeyOverride = entry.optString("apiKeyOverride"),
-                )
-            }
-            out.toMap()
-        }.getOrDefault(emptyMap())
-    }
-
-    private fun serializeSubagentConfigs(configs: Map<String, SubagentConfig>): String {
-        if (configs.isEmpty()) return "{}"
-        val json = org.json.JSONObject()
-        configs.forEach { (name, config) ->
-            json.put(
-                name,
-                org.json.JSONObject()
-                    .put("enabled", config.enabled)
-                    .put("modelId", config.modelId)
-                    .put("apiKeyOverride", config.apiKeyOverride),
-            )
-        }
-        return json.toString()
     }
 
     // ── Multi-Provider support ───────────────────────────────────────────────
@@ -344,13 +303,10 @@ class SettingsRepository(
             it[DEFAULT_SELECTED_SKILL_IDS] = serializeStringArray(settings.defaultSelectedSkillIds)
             it.remove(BASIC_FUNCTION_CALLING_COMPATIBILITY_MODE)
             it.remove(UNSUPPORTED_PARALLEL_TOOL_CALL_PROVIDER_KEYS)
-            it[SUBAGENTS_SHARED_OPENROUTER_API_KEY] = settings.subagentsSharedOpenRouterApiKey
-            it[SUBAGENT_CONFIGS_JSON] = serializeSubagentConfigs(settings.subagentConfigs)
             it[ONBOARDING_SEEN_VERSION] = settings.onboardingSeenVersion
             it[ONBOARDING_COMPLETED_VERSION] = settings.onboardingCompletedVersion
             it[PRIVACY_POLICY_ACCEPTED] =
                 (it[PRIVACY_POLICY_ACCEPTED] ?: false) || settings.privacyPolicyAccepted
-            it[LAST_UPDATE_CHECK_AT_MILLIS] = settings.lastUpdateCheckAtMillis
             it[PROVIDER_CONFIGS] = serializeProviderConfigs(providerConfigs)
         }
     }
@@ -447,11 +403,8 @@ class SettingsRepository(
             prefs[DEFAULT_SELECTED_SKILL_IDS] = serializeStringArray(settings.defaultSelectedSkillIds)
             prefs.remove(BASIC_FUNCTION_CALLING_COMPATIBILITY_MODE)
             prefs.remove(UNSUPPORTED_PARALLEL_TOOL_CALL_PROVIDER_KEYS)
-            prefs[SUBAGENTS_SHARED_OPENROUTER_API_KEY] = settings.subagentsSharedOpenRouterApiKey
-            prefs[SUBAGENT_CONFIGS_JSON] = serializeSubagentConfigs(settings.subagentConfigs)
             prefs[PRIVACY_POLICY_ACCEPTED] =
                 (prefs[PRIVACY_POLICY_ACCEPTED] ?: false) || settings.privacyPolicyAccepted
-            prefs[LAST_UPDATE_CHECK_AT_MILLIS] = settings.lastUpdateCheckAtMillis
         }
 
     suspend fun updateSettings(settings: AppSettings) {
@@ -483,12 +436,6 @@ class SettingsRepository(
     suspend fun updateOnboardingCompletedVersion(version: Int) {
         context.dataStore.edit { prefs ->
             prefs[ONBOARDING_COMPLETED_VERSION] = version
-        }
-    }
-
-    suspend fun updateLastUpdateCheckAtMillis(value: Long) {
-        context.dataStore.edit { prefs ->
-            prefs[LAST_UPDATE_CHECK_AT_MILLIS] = value
         }
     }
 
@@ -555,9 +502,6 @@ class SettingsRepository(
         val MODEL_CATALOG_CACHE_JSON = stringPreferencesKey("model_catalog_cache_json")
         val THINKING_CATALOG_CACHE_JSON = stringPreferencesKey("thinking_catalog_cache_json")
         val DEFAULT_SELECTED_SKILL_IDS = stringPreferencesKey("default_selected_skill_ids")
-        val SUBAGENTS_SHARED_OPENROUTER_API_KEY =
-            stringPreferencesKey("subagents_shared_openrouter_api_key")
-        val SUBAGENT_CONFIGS_JSON = stringPreferencesKey("subagent_configs_json")
         val UNSUPPORTED_PARALLEL_TOOL_CALL_PROVIDER_KEYS =
             stringPreferencesKey("unsupported_parallel_tool_call_provider_keys")
         val BASIC_FUNCTION_CALLING_COMPATIBILITY_MODE =
@@ -566,7 +510,6 @@ class SettingsRepository(
         val ONBOARDING_SEEN_VERSION = intPreferencesKey("onboarding_seen_version")
         val ONBOARDING_COMPLETED_VERSION = intPreferencesKey("onboarding_completed_version")
         val PRIVACY_POLICY_ACCEPTED = booleanPreferencesKey("privacy_policy_accepted")
-        val LAST_UPDATE_CHECK_AT_MILLIS = longPreferencesKey("last_update_check_at_millis")
     }
 }
 

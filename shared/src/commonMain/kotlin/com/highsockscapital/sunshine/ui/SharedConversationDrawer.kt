@@ -391,6 +391,7 @@ private fun SharedDrawerSessionRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .border(1.dp, Color(0xFF161610), RoundedCornerShape(18.dp))
                 .clip(RoundedCornerShape(18.dp))
                 .background(if (selected) SunshineSurfaceHigh else Color.Transparent)
                 .then(

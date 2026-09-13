@@ -352,7 +352,6 @@ private fun AppSettings.toAndroidAppSettingsJson(): JsonObject = buildJsonObject
     put("onboardingSeenVersion", onboardingSeenVersion)
     put("onboardingCompletedVersion", onboardingCompletedVersion)
     put("privacyPolicyAccepted", privacyPolicyAccepted)
-    put("lastUpdateCheckAtMillis", lastUpdateCheckAtMillis)
 }
 
 private fun parseAndroidAppSettings(value: JsonObject): AppSettings {
@@ -465,10 +464,6 @@ private fun parseAndroidAppSettings(value: JsonObject): AppSettings {
             "privacyPolicyAccepted",
             defaults.privacyPolicyAccepted,
         ),
-        lastUpdateCheckAtMillis = value.longValueOrDefault(
-            "lastUpdateCheckAtMillis",
-            defaults.lastUpdateCheckAtMillis,
-        ),
     )
 }
 
@@ -494,9 +489,6 @@ private fun JsonObject.booleanValueOrDefault(name: String, fallback: Boolean): B
 
 private fun JsonObject.intValueOrDefault(name: String, fallback: Int): Int =
     (this[name] as? JsonPrimitive)?.intOrNull ?: fallback
-
-private fun JsonObject.longValueOrDefault(name: String, fallback: Long): Long =
-    (this[name] as? JsonPrimitive)?.longOrNull ?: fallback
 
 private fun JsonArray?.toTrimmedStringList(): List<String> = orEmpty().mapNotNull { element ->
     (element as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotEmpty)

@@ -28,7 +28,6 @@ import com.highsockscapital.sunshine.data.InstalledSkill
 import com.highsockscapital.sunshine.data.InstalledPiExtension
 import com.highsockscapital.sunshine.data.PiExtensionInstallKind
 import com.highsockscapital.sunshine.data.PiExtensionCatalogEntry
-import com.highsockscapital.sunshine.data.PiDiscoveredSkillSource
 import com.highsockscapital.sunshine.data.ProviderModelCatalogClient
 import com.highsockscapital.sunshine.data.thinkingCatalogKey
 import com.highsockscapital.sunshine.data.LlmProviderConfig
@@ -48,7 +47,6 @@ import com.highsockscapital.sunshine.data.normalizeLlmInactivityReconnectTimeout
 import com.highsockscapital.sunshine.data.normalizeLlmUserAgent
 import com.highsockscapital.sunshine.data.normalizeOldCommandHistoryRetentionHours
 import com.highsockscapital.sunshine.data.normalizeTavilyBaseUrl
-import com.highsockscapital.sunshine.data.OnboardingStarterPrompt
 import com.highsockscapital.sunshine.data.RootSetupIssue
 import com.highsockscapital.sunshine.data.RootSetupState
 import com.highsockscapital.sunshine.data.ScheduledTask
@@ -57,8 +55,6 @@ import com.highsockscapital.sunshine.data.ScheduledTaskSchedule
 import com.highsockscapital.sunshine.data.TermuxEnvironmentVariable
 import com.highsockscapital.sunshine.data.normalizeTermuxEnvironmentVariables
 import com.highsockscapital.sunshine.data.SessionFollowUpMode
-import com.highsockscapital.sunshine.data.SubagentManager
-import com.highsockscapital.sunshine.data.SubagentConfig
 import com.highsockscapital.sunshine.data.SessionExecutionState
 import com.highsockscapital.sunshine.data.SessionTurnEvent
 import com.highsockscapital.sunshine.data.SessionTurnOutcome
@@ -76,13 +72,11 @@ import com.highsockscapital.sunshine.data.withExplicitDefaultChatModel
 import com.highsockscapital.sunshine.data.LlmMessage
 import com.highsockscapital.sunshine.data.LlmTextPart
 import com.highsockscapital.sunshine.data.ProviderAuthMethod
-import com.highsockscapital.sunshine.data.pi.BuiltInAgentsGuestDirectory
 import com.highsockscapital.sunshine.data.pi.PiCompletionClient
 import com.highsockscapital.sunshine.data.pi.PiKernelBridge
 import com.highsockscapital.sunshine.data.pi.PiCoreSetupActivity
 import com.highsockscapital.sunshine.data.pi.PiCoreSetupPhase
 import com.highsockscapital.sunshine.data.pi.PiCoreSetupState
-import com.highsockscapital.sunshine.data.pi.PiCoreSetupUpdate
 import com.highsockscapital.sunshine.data.pi.PiProviderAuthState
 import com.highsockscapital.sunshine.data.pi.toProviderPayloadJson
 import com.highsockscapital.sunshine.data.pi.toPiOAuthPrompt
@@ -127,10 +121,8 @@ import java.util.Locale
 import java.util.UUID
 
 private const val FollowUpTourAutoOpenDelayMillis = 2_500L
-private const val AppUpdateCheckIntervalMillis = 3L * 24L * 60L * 60L * 1000L
 private const val UpdateChannelNightly = "nightly"
 private const val LogcatReadTimeoutSeconds = 4L
-private const val MaxSetupOutputChars = 48_000
 private const val SessionTitleSystemPrompt =
     "Generate a concise chat title for this conversation. Return only the title, in the user's language when possible, with no quotes, no emoji, and at most 6 words."
 private const val CompactCommand = "/compact"
@@ -191,7 +183,6 @@ class SunshineViewModel(
         diagnosticLogger = diagnosticLogger,
     )
     private val appUpdateManager = AppUpdateManager(application.applicationContext)
-    private var didEvaluateStartupUpdateCheck = false
     private var lastTrackedTermuxDetectedIssue: TermuxSetupIssue? = null
     private var pendingTermuxSetupSource: String? = null
     private var lastModelCatalogRequestKey: String = ""
@@ -208,8 +199,6 @@ class SunshineViewModel(
     val uiState: StateFlow<SunshineUiState> = _uiState.asStateFlow()
     val transientMessages = _transientMessages.asSharedFlow()
 
-    private var lastSyncedSubagentSignature: String? = null
-
     init {
         registerCoreModServices()
         refreshTermuxSetup()
@@ -221,16 +210,6 @@ class SunshineViewModel(
             settingsRepository.settings.collect { settings ->
                 if (settings.privacyPolicyAccepted) {
                     runtime.initializePostHog()
-                }
-                val subagentSignature = settings.subagentsSharedOpenRouterApiKey + "|" +
-                    settings.subagentConfigs.entries
-                        .sortedBy { it.key }
-                        .joinToString(",") { (name, config) ->
-                            name + ":" + config.enabled + ":" + config.modelId + ":" + config.apiKeyOverride
-                        }
-                if (subagentSignature != lastSyncedSubagentSignature) {
-                    lastSyncedSubagentSignature = subagentSignature
-                    syncBuiltInSubagents(settings.subagentConfigs)
                 }
                 _uiState.update { current ->
                     if (!current.isStartupRouteResolved) {
@@ -257,10 +236,6 @@ class SunshineViewModel(
                     enabled = settings.autoCleanOldCommandHistory,
                     retentionHours = settings.oldCommandHistoryRetentionHours,
                 )
-                if (!didEvaluateStartupUpdateCheck && settings.privacyPolicyAccepted) {
-                    didEvaluateStartupUpdateCheck = true
-                    maybeCheckForUpdates(settings)
-                }
                 agentModeController.refreshAuthorization(settings)
                 maybeInitializeWorkspaceMode(settings)
             }
@@ -638,89 +613,6 @@ class SunshineViewModel(
 
 
 
-    private suspend fun refreshPiCoreSetup() {
-        if (_uiState.value.piCoreSetupState.isChecking) return
-        _uiState.update {
-            it.copy(
-                piCoreSetupState = PiCoreSetupState(
-                    isChecking = true,
-                    phase = PiCoreSetupPhase.CheckingRuntime,
-                    output = it.piCoreSetupState.output.ifBlank { "Starting agent runtime setup...\n" },
-                )
-            )
-        }
-        runCatching {
-            withContext(Dispatchers.IO) {
-                runtime.piKernelBridge.ping(::applyPiCoreSetupUpdate)
-            }
-        }.fold(
-            onSuccess = { payload ->
-                _uiState.update {
-                    it.copy(
-                        piCoreSetupState = PiCoreSetupState(
-                            isReady = true,
-                            phase = PiCoreSetupPhase.Ready,
-                            nodeVersion = payload.optString("node_version"),
-                            bridgeVersion = payload.optString("bridge_version"),
-                            output = appendSetupOutput(
-                                it.piCoreSetupState.output,
-                                "AI engine setup complete.\n",
-                            ),
-                        )
-                    )
-                }
-                syncPiDiscoveredSkills()
-            },
-            onFailure = { throwable ->
-                if (throwable is CancellationException) throw throwable
-                _uiState.update { current ->
-                    current.copy(
-                        piCoreSetupState = PiCoreSetupState(
-                            phase = PiCoreSetupPhase.Failed,
-                            failedAtPhase = current.piCoreSetupState.phase,
-                            detail = throwable.userFacingMessage(),
-                            output = appendSetupOutput(
-                                current.piCoreSetupState.output,
-                                "Setup failed: ${throwable.userFacingMessage()}\n",
-                            ),
-                        )
-                    )
-                }
-            },
-        )
-    }
-
-    private suspend fun syncPiDiscoveredSkills() {
-        runCatching {
-            val response = piKernelBridge.listDiscoveredSkills()
-            val skills = response.optJSONArray("skills") ?: return@runCatching
-            val discovered = buildList {
-                for (index in 0 until skills.length()) {
-                    val item = skills.optJSONObject(index) ?: continue
-                    val guestFilePath = item.optString("file_path").trim()
-                    val guestBaseDir = item.optString("base_dir").trim()
-                    if (guestFilePath.isBlank() || guestBaseDir.isBlank()) continue
-                    val hostFile = cacheTermuxGuestSkillFile(guestFilePath) ?: continue
-                    val hostRoot = hostFile.parentFile ?: continue
-                    add(
-                        PiDiscoveredSkillSource(
-                            guestFilePath = guestFilePath,
-                            guestBaseDir = guestBaseDir,
-                            hostFile = hostFile,
-                            hostRoot = hostRoot,
-                        )
-                    )
-                }
-            }
-            skillManager.syncPiDiscoveredSkills(discovered).getOrThrow()
-        }
-    }
-
-
-
-
-
-
     fun setDefaultRuntime(runtimeId: LocalRuntimeId) {
         viewModelScope.launch {
             settingsRepository.updateSettings { current ->
@@ -803,11 +695,11 @@ class SunshineViewModel(
     }
 
     fun checkForUpdates() {
-        checkForUpdates(manual = true, forceAvailable = false)
+        checkForUpdates(forceAvailable = false)
     }
 
     fun forceUpdateCheckForTesting() {
-        checkForUpdates(manual = true, forceAvailable = true)
+        checkForUpdates(forceAvailable = true)
     }
 
     fun dismissUpdateAvailableDialog() {
@@ -907,16 +799,7 @@ class SunshineViewModel(
 
     fun updateDraftInput(value: String) {
         _uiState.update { current ->
-            current.copy(
-                draftInput = value,
-                showStarterPromptHint = if (
-                    current.showStarterPromptHint && value != current.draftInput
-                ) {
-                    false
-                } else {
-                    current.showStarterPromptHint
-                },
-            )
+            current.copy(draftInput = value)
         }
     }
 
@@ -982,49 +865,6 @@ class SunshineViewModel(
         }
     }
 
-    /** Copies a single discovered-skill source file from Termux storage into app-private cache. */
-    private suspend fun cacheTermuxGuestSkillFile(guestFilePath: String): java.io.File? {
-        val guestFiles = runtime.termuxGuestFiles
-        return runCatching {
-            if (!guestFiles.exists(guestFilePath)) return null
-            val safeName = guestFilePath.trim('/').replace('/', '_')
-            val cacheFile = java.io.File(
-                java.io.File(getApplication<Application>().cacheDir, "termux-skills"),
-                safeName,
-            )
-            cacheFile.parentFile?.mkdirs()
-            cacheFile.writeBytes(guestFiles.readFileBytes(guestFilePath))
-            cacheFile
-        }.getOrNull()
-    }
-
-    private fun applyPiCoreSetupUpdate(update: PiCoreSetupUpdate) {
-        _uiState.update { current ->
-            current.copy(
-                piCoreSetupState = current.piCoreSetupState.copy(
-                    isChecking = true,
-                    phase = update.phase,
-                    activity = update.activity,
-                    bytesPerSecond = update.bytesPerSecond,
-                    output = appendSetupOutput(current.piCoreSetupState.output, update.output),
-                )
-            )
-        }
-    }
-
-    private fun appendSetupOutput(
-        current: String,
-        addition: String,
-    ): String {
-        if (addition.isEmpty()) return current
-        val combined = current + addition
-        return if (combined.length <= MaxSetupOutputChars) {
-            combined
-        } else {
-            combined.takeLast(MaxSetupOutputChars)
-        }
-    }
-
     fun completeFollowUpOnboarding() {
         captureAnalyticsEvent(
             event = "onboarding follow up completed",
@@ -1059,7 +899,7 @@ class SunshineViewModel(
                     onboardingStep = OnboardingStep.Landing,
                     onboardingReturnScreen = AppScreen.Chat,
                     currentSessionId = DraftSessionId,
-                    draftInput = OnboardingStarterPrompt,
+                    draftInput = "",
                     draftAttachments = emptyList(),
                     draftSelectedModelKey = defaultModelKey,
                     draftSelectedSkillIds = emptyList(),
@@ -1069,7 +909,6 @@ class SunshineViewModel(
                     draftWorkspaceId = null,
                     editingSessionId = null,
                     editingMessageId = null,
-                    showStarterPromptHint = true,
                     awaitingFollowUpTour = true,
                     showFollowUpTourCard = false,
                 )
@@ -1094,10 +933,6 @@ class SunshineViewModel(
                 ),
             )
         }
-    }
-
-    fun dismissStarterPromptHint() {
-        _uiState.update { current -> current.copy(showStarterPromptHint = false) }
     }
 
     fun dismissTermuxSetupNotice() {
@@ -1277,7 +1112,6 @@ class SunshineViewModel(
                 editingSessionId = null,
                 editingMessageId = null,
                 unviewedCompletedSessionIds = it.unviewedCompletedSessionIds - DraftSessionId,
-                showStarterPromptHint = false,
             )
         }
         persistCurrentSessionId(DraftSessionId)
@@ -1351,7 +1185,6 @@ class SunshineViewModel(
                 editingSessionId = null,
                 editingMessageId = null,
                 unviewedCompletedSessionIds = current.unviewedCompletedSessionIds - sessionId,
-                showStarterPromptHint = false,
             )
         }
         selectSessionJob = viewModelScope.launch {
@@ -1429,7 +1262,6 @@ class SunshineViewModel(
                 editingSessionId = if (current.editingSessionId == sessionId) null else current.editingSessionId,
                 editingMessageId = if (current.editingSessionId == sessionId) null else current.editingMessageId,
                 unviewedCompletedSessionIds = current.unviewedCompletedSessionIds - sessionId,
-                showStarterPromptHint = false,
             )
         }
         if (didUpdate) {
@@ -1633,7 +1465,6 @@ class SunshineViewModel(
                 draftWorkspaceId = sessionId,
                 editingSessionId = sessionId,
                 editingMessageId = messageId,
-                showStarterPromptHint = false,
             )
         }
         persistCurrentSessionId(sessionId)
@@ -1658,7 +1489,6 @@ class SunshineViewModel(
                 draftWorkspaceId = null,
                 editingSessionId = null,
                 editingMessageId = null,
-                showStarterPromptHint = false,
             )
         }
     }
@@ -2101,88 +1931,6 @@ class SunshineViewModel(
         }
     }
 
-    fun saveSubagentSettings(
-        sharedOpenRouterApiKey: String,
-        configs: Map<String, SubagentConfig>,
-    ) {
-        viewModelScope.launch {
-            val normalizedConfigs = configs
-                .mapKeys { it.key.trim() }
-                .mapValues { (_, config) ->
-                    config.copy(
-                        modelId = config.modelId.trim(),
-                        apiKeyOverride = config.apiKeyOverride.trim(),
-                    )
-                }
-            withContext(NonCancellable) {
-                val updatedSettings = settingsRepository.updateSettings { stored ->
-                    stored.copy(
-                        subagentsSharedOpenRouterApiKey = sharedOpenRouterApiKey.trim(),
-                        subagentConfigs = normalizedConfigs,
-                    )
-                }
-                _uiState.update { current ->
-                    current.copy(settings = updatedSettings)
-                }
-            }
-        }
-    }
-
-    fun fetchSubagentModels(
-        openRouterApiKey: String,
-        onComplete: (List<String>) -> Unit,
-    ) {
-        _uiState.update { it.copy(isFetchingModels = true) }
-        viewModelScope.launch {
-            val result = ProviderModelCatalogClient.fetchModels(
-                LlmProviderConfig(
-                    providerId = "openrouter",
-                    name = "OpenRouter",
-                    piProviderId = "openrouter",
-                    apiKey = openRouterApiKey.trim(),
-                    baseUrl = PiProviderCatalog.resolve("openrouter").defaultBaseUrl,
-                    modelId = "",
-                    manualModelIds = emptyList(),
-                ),
-            )
-            _uiState.update { it.copy(isFetchingModels = false) }
-            onComplete(result.models)
-        }
-    }
-
-    /** Writes built-in agent files into the pi global agents directory. */
-    private fun syncBuiltInSubagents(configs: Map<String, SubagentConfig>) {
-        viewModelScope.launch {
-            runCatching {
-                val stagingRoot = java.io.File(
-                    getApplication<Application>().filesDir,
-                    "subagent-mirror",
-                )
-                SubagentManager(
-                    homeDirectory = "",
-                    globalAgentsDirectoryOverride = stagingRoot,
-                ).syncBuiltIns(configs)
-                runtime.termuxGuestFiles.ensureDirectory(BuiltInAgentsGuestDirectory)
-                stagingRoot.walkTopDown()
-                    .filter { it.isFile }
-                    .forEach { file ->
-                        val relative = file.relativeToOrNull(stagingRoot)?.invariantSeparatorsPath ?: return@forEach
-                        runtime.termuxGuestFiles.writeFileBytes(
-                            "$BuiltInAgentsGuestDirectory/$relative",
-                            file.readBytes(),
-                        )
-                    }
-            }.onFailure { throwable ->
-                diagnosticLogger.exception(
-                    category = "pi_bridge",
-                    event = "builtin_subagents_sync_failed",
-                    throwable = throwable,
-                    level = "warn",
-                )
-            }
-        }
-    }
-
     // ── Multi-Provider methods ────────────────────────────────────────────────
 
     fun updateAppLanguage(language: AppLanguage) {
@@ -2554,32 +2302,6 @@ class SunshineViewModel(
         providerAuthJob?.cancel()
         providerAuthJob = null
         _uiState.update { it.copy(providerAuthState = PiProviderAuthState()) }
-    }
-
-    private fun mergeFetchedModels(
-        current: LlmProviderConfig,
-        fetchedModels: List<String>,
-    ): LlmProviderConfig {
-        val normalizedCurrent = normalizeProviderConfig(current)
-        val previousModels = normalizedCurrent.cachedModels.toSet()
-        val normalizedFetched = fetchedModels
-            .map(String::trim)
-            .filter(String::isNotEmpty)
-            .distinct()
-        val enabledModels = normalizedFetched.filter { modelId ->
-            normalizedCurrent.enabledModelIds.contains(modelId) || !previousModels.contains(modelId)
-        }
-        return normalizeProviderConfig(
-            normalizedCurrent.copy(
-                modelId = when {
-                    normalizedCurrent.modelId in normalizedFetched -> normalizedCurrent.modelId
-                    normalizedFetched.isNotEmpty() -> normalizedFetched.first()
-                    else -> normalizedCurrent.modelId
-                },
-                cachedModels = normalizedFetched,
-                enabledModelIds = enabledModels,
-            )
-        )
     }
 
     fun installSkillFromDirectory(treeUri: Uri) {
@@ -4007,7 +3729,6 @@ class SunshineViewModel(
                     draftWorkspaceId = null,
                     editingSessionId = null,
                     editingMessageId = null,
-                    showStarterPromptHint = false,
                 )
             }
             if ("message_sent" in sunshineAppExtensionManager.state.value.snapshot.eventNames) {
@@ -4150,7 +3871,6 @@ class SunshineViewModel(
                 editingSessionId = null,
                 editingMessageId = null,
                 currentScreen = AppScreen.Chat,
-                showStarterPromptHint = false,
             )
         }
 
@@ -4526,18 +4246,6 @@ class SunshineViewModel(
                 session.copy(messages = emptyList())
             }
         }
-
-    private fun replacePersistedChats(
-        sessions: List<ChatSession>,
-        currentSessionId: String,
-    ) {
-        chatStateStore.update { persisted ->
-            persisted.copy(
-                sessions = sessions,
-                currentSessionId = currentSessionId,
-            )
-        }
-    }
 
     private fun persistSessionSnapshot(
         session: ChatSession,
@@ -5033,45 +4741,6 @@ class SunshineViewModel(
         )
     }
 
-    private suspend fun resolveSelectedActiveSkills(
-        selectedSkillIds: List<String>,
-        existingActiveSkills: List<ActiveSkillContext>,
-    ): List<ActiveSkillContext> {
-        if (selectedSkillIds.isEmpty()) return emptyList()
-        val installedSkillsById = _uiState.value.installedSkills
-            .filter { it.isEnabled }
-            .associateBy { it.id }
-        return buildList {
-            selectedSkillIds.distinct().forEach { skillId ->
-                val installedSkill = installedSkillsById[skillId] ?: return@forEach
-                val refreshedSkill = skillManager.buildActiveSkillContext(installedSkill)
-                    .getOrElse { return@forEach }
-                add(refreshedSkill)
-            }
-        }
-    }
-
-    private fun upsertActiveSkillContext(
-        activeSkills: List<ActiveSkillContext>,
-        activeSkill: ActiveSkillContext,
-    ): List<ActiveSkillContext> {
-        val existingIndex = activeSkills.indexOfFirst { it.skillId == activeSkill.skillId }
-        if (existingIndex < 0) return activeSkills + activeSkill
-        return activeSkills.toMutableList().apply {
-            set(existingIndex, activeSkill)
-        }
-    }
-
-    private fun resolveSelectedMcpServers(
-        selectedServerIds: List<String>,
-    ): List<McpServerConfig> {
-        if (selectedServerIds.isEmpty()) return emptyList()
-        val enabledServersById = _uiState.value.mcpServers
-            .filter { it.isEnabled }
-            .associateBy { it.id }
-        return selectedServerIds.distinct().mapNotNull(enabledServersById::get)
-    }
-
     private fun setSessionSelectedSkillIds(
         sessionId: String,
         selectedSkillIds: List<String>,
@@ -5090,32 +4759,6 @@ class SunshineViewModel(
                     selectedSkillIds = selectedSkillIds,
                     activeSkills = activeSkills,
                 )
-            }
-        }
-    }
-
-    private fun setSessionActiveSkills(
-        sessionId: String,
-        activeSkills: List<ActiveSkillContext>,
-    ) {
-        updateSession(sessionId) { session ->
-            if (session.activeSkills == activeSkills) {
-                null
-            } else {
-                session.copy(activeSkills = activeSkills)
-            }
-        }
-    }
-
-    private fun setSessionActiveMcpServerIds(
-        sessionId: String,
-        activeMcpServerIds: List<String>,
-    ) {
-        updateSession(sessionId) { session ->
-            if (session.activeMcpServerIds == activeMcpServerIds) {
-                null
-            } else {
-                session.copy(activeMcpServerIds = activeMcpServerIds)
             }
         }
     }
@@ -5295,7 +4938,6 @@ class SunshineViewModel(
                     draftWorkspaceId = null,
                     editingSessionId = null,
                     editingMessageId = null,
-                    showStarterPromptHint = false,
                     compactingSessionId = sessionId,
                 )
             } else {
@@ -5587,30 +5229,18 @@ class SunshineViewModel(
         }
     }
 
-    private fun maybeCheckForUpdates(settings: AppSettings) {
-        val now = System.currentTimeMillis()
-        if (now - settings.lastUpdateCheckAtMillis < AppUpdateCheckIntervalMillis) {
-            return
-        }
-        checkForUpdates(manual = false, forceAvailable = false)
-    }
-
-    private fun checkForUpdates(
-        manual: Boolean,
-        forceAvailable: Boolean,
-    ) {
+    private fun checkForUpdates(forceAvailable: Boolean) {
         if (_uiState.value.appUpdate.isChecking) return
 
         _uiState.update { current ->
             current.copy(
                 appUpdate = current.appUpdate.copy(
                     isChecking = true,
-                    showAvailableDialog = if (manual) false else current.appUpdate.showAvailableDialog,
+                    showAvailableDialog = false,
                 )
             )
         }
         viewModelScope.launch {
-            val checkedAtMillis = System.currentTimeMillis()
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     if (BuildConfig.UPDATE_CHANNEL == UpdateChannelNightly) {
@@ -5620,7 +5250,6 @@ class SunshineViewModel(
                     }
                 }
             }
-            settingsRepository.updateLastUpdateCheckAtMillis(checkedAtMillis)
 
             result
                 .onSuccess { release ->
@@ -5644,7 +5273,7 @@ class SunshineViewModel(
                             )
                         )
                     }
-                    if (!hasUpdate && manual) {
+                    if (!hasUpdate) {
                         emitTransientMessage(uiString(R.string.message_sunshine_up_to_date))
                     }
                 }
@@ -5654,9 +5283,7 @@ class SunshineViewModel(
                             appUpdate = current.appUpdate.copy(isChecking = false)
                         )
                     }
-                    if (manual) {
-                        emitTransientMessage(uiString(R.string.message_update_check_failed, throwable.userFacingMessage()))
-                    }
+                    emitTransientMessage(uiString(R.string.message_update_check_failed, throwable.userFacingMessage()))
                 }
         }
     }
@@ -6073,7 +5700,6 @@ class SunshineViewModel(
         put("onboardingSeenVersion", onboardingSeenVersion)
         put("onboardingCompletedVersion", onboardingCompletedVersion)
         put("privacyPolicyAccepted", privacyPolicyAccepted)
-        put("lastUpdateCheckAtMillis", lastUpdateCheckAtMillis)
     }
 
     private fun parseImportedSettings(json: JSONObject?): AppSettings {
@@ -6176,23 +5802,7 @@ class SunshineViewModel(
                 "privacyPolicyAccepted",
                 defaults.privacyPolicyAccepted,
             ),
-            lastUpdateCheckAtMillis = json.optLong(
-                "lastUpdateCheckAtMillis",
-                defaults.lastUpdateCheckAtMillis,
-            ),
         )
-    }
-
-    private fun parseImportedStringArray(array: JSONArray?): List<String> {
-        if (array == null) return emptyList()
-        return buildList {
-            for (index in 0 until array.length()) {
-                val value = array.optString(index).trim()
-                if (value.isNotEmpty()) {
-                    add(value)
-                }
-            }
-        }.distinct()
     }
 
     private fun parseImportedTermuxEnvironmentVariables(

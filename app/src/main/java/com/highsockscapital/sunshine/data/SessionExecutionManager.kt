@@ -1036,17 +1036,6 @@ class SessionExecutionManager(
         implicitActiveSkills = implicitActiveSkills,
     )
 
-    private fun upsertActiveSkillContext(
-        activeSkills: List<ActiveSkillContext>,
-        activeSkill: ActiveSkillContext,
-    ): List<ActiveSkillContext> {
-        val existingIndex = activeSkills.indexOfFirst { it.skillId == activeSkill.skillId }
-        if (existingIndex < 0) return activeSkills + activeSkill
-        return activeSkills.toMutableList().apply {
-            set(existingIndex, activeSkill)
-        }
-    }
-
     private fun appendAgentMessage(
         sessionId: String,
         blocks: List<AssistantResponseBlock>,

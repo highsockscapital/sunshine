@@ -171,7 +171,6 @@ interface AgentSessionState {
   runtime: "alpine" | "termux";
   platform: "android";
   chromeEnabled: boolean;
-  subagentCredentials: SubagentCredentials;
   modelRuntime: ModelRuntime;
   model: Model<string>;
   credentialStore?: BridgeCredentialStore;
@@ -186,30 +185,6 @@ interface AgentSessionState {
   firstAssistantEventAtMillis?: number;
   toolArgsById: Map<string, unknown>;
   lastAccessedAt: number;
-}
-
-type SubagentCredentials = {
-  sharedApiKey: string;
-  overrides: Record<string, string>;
-};
-
-function subagentCredentialsFromPayload(payload: JsonObject): SubagentCredentials {
-  const raw = asObject(payload.subagent_credentials);
-  const overrides: Record<string, string> = {};
-  for (const [name, value] of Object.entries(asObject(raw.overrides))) {
-    const key = asString(value).trim();
-    if (key.length > 0 && name.trim().length > 0) overrides[name.trim()] = key;
-  }
-  return { sharedApiKey: asString(raw.shared_api_key).trim(), overrides };
-}
-
-const SUBAGENT_CREDENTIALS_SYMBOL = Symbol.for("sunshine.subagent-credentials");
-
-// The bundled pi-subagents extension reads this at spawn time to give each
-// subagent its own OpenRouter credential (per-agent override or shared key).
-function publishSubagentCredentials(credentials: SubagentCredentials): void {
-  (globalThis as unknown as Record<PropertyKey, unknown>)[SUBAGENT_CREDENTIALS_SYMBOL] =
-    credentials;
 }
 
 const activeAborters = new Map<string, () => void | Promise<unknown>>();
@@ -2294,7 +2269,6 @@ async function createNativeAgentSession(
     runtime,
     platform,
     chromeEnabled: asBoolean(payload.chrome_enabled, false),
-    subagentCredentials: subagentCredentialsFromPayload(payload),
     modelRuntime: built.modelRuntime,
     model: built.model,
     credentialStore: built.credentialStore,
@@ -2308,7 +2282,6 @@ async function createNativeAgentSession(
     toolArgsById: new Map<string, unknown>(),
     lastAccessedAt: Date.now(),
   } satisfies AgentSessionState;
-  publishSubagentCredentials(state.subagentCredentials);
   const customTools = [
     ...nativeToolDefinitions(state),
     ...allowedHostToolDefinitions(payload.host_tools).map((tool) =>
@@ -2586,10 +2559,6 @@ async function prepareNativeAgentSession(
   }
   existing.lastAccessedAt = Date.now();
   existing.chromeEnabled = asBoolean(payload.chrome_enabled, false);
-  if (payload.subagent_credentials !== undefined) {
-    existing.subagentCredentials = subagentCredentialsFromPayload(payload);
-  }
-  publishSubagentCredentials(existing.subagentCredentials);
   setActiveSessionTools(existing);
   return { state: existing, reused: true };
 }
