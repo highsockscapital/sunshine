@@ -815,7 +815,11 @@ class PiKernelBridge(
         if (version == null || compareSemver(version, PiBridgeNodeMinVersion) < 0) {
             throw PiBridgeException(
                 "Pi bridge requires Node.js >= $PiBridgeNodeMinVersion in Termux. " +
-                    "Install it with: pkg install nodejs",
+                    "In Termux, update the package lists and upgrade the runtime together: " +
+                    "pkg update -y && pkg upgrade -y && " +
+                    "pkg install -y nodejs openssl clang make pkg-config python git. " +
+                    "Then verify node --version and openssl version. " +
+                    "If Node reports libcrypto/libssl symbol errors, repair the package set before retrying.",
                 code = "node_missing_or_too_old",
             )
         }

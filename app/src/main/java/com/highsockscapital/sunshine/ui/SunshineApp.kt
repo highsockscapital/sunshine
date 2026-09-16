@@ -1214,18 +1214,7 @@ private fun SunshineAppContent(
                 onDecline = { context.findActivity()?.finishAffinity() },
             )
         }
-        val availableUpdate = uiState.appUpdate.availableRelease
-        if (
-            uiState.appUpdate.showAvailableDialog &&
-            availableUpdate != null &&
-            uiState.settings.privacyPolicyAccepted
-        ) {
-            AppUpdateAvailableDialog(
-                updateState = uiState.appUpdate,
-                onDismiss = viewModel::dismissUpdateAvailableDialog,
-                onDownloadAndInstall = viewModel::downloadAndInstallUpdate,
-            )
-        }
+        // Updates are presented inline in Settings, never as an app-wide popup.
         if (showAppDataExportWarning) {
             AlertDialog(
                 onDismissRequest = { showAppDataExportWarning = false },

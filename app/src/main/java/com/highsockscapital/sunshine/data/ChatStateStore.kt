@@ -92,6 +92,12 @@ class ChatStateStore(
         }
     }
 
+    /** Select a blank chat only after history has loaded, without changing saved conversations. */
+    suspend fun selectDraftSession() {
+        repositoryStateReady.await()
+        update { persisted -> persisted.copy(currentSessionId = DraftSessionId) }
+    }
+
     suspend fun flush() {
         repositoryStateReady.await()
         flushLatestPending(propagateFailure = true)

@@ -118,7 +118,7 @@
     <string name="chat_create_image">Create image</string>
     <string name="chat_brainstorm">Brainstorm</string>
     <string name="chat_analyze_images">Analyze images</string>
-    <string name="chat_sunshine_is_thinking">Sunshine is thinking...</string>
+    <string name="chat_sunshine_is_thinking">Brewing</string>
     <string name="chat_reply_to_sunshine">Reply to Sunshine</string>
     <string name="chat_ask_sunshine">Ask Sunshine</string>
     <string name="chat_voice">Voice</string>
@@ -135,7 +135,7 @@
     <string name="chat_code_chip">Code</string>
     <string name="chat_help_me_write_chip">Help me write</string>
     <string name="chat_summarize_file_chip">Summarize file</string>
-    <string name="chat_thinking">Thinking</string>
+    <string name="chat_thinking">Brewing</string>
     <string name="chat_responding">Responding</string>
     <string name="chat_working">Working</string>
     <string name="chat_stopped">Stopped</string>
@@ -177,7 +177,7 @@
     <string name="chat_standby">standby</string>
     <string name="chat_no_output">No output</string>
     <string name="chat_content_truncated">Content truncated for readability.</string>
-    <string name="chat_thought_for_duration">Thought for %1$s</string>
+    <string name="chat_thought_for_duration">Brewed for %1$s</string>
     <string name="chat_working_for_duration">Working for %1$s</string>
     <string name="chat_waiting_for_reasoning">Waiting for reasoning...</string>
     <string name="chat_raw_reasoning">Raw reasoning</string>

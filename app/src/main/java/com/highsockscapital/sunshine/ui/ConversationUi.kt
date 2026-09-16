@@ -538,6 +538,31 @@ fun ConversationScreen(
                 .padding(innerPadding)
         ) {
             if (messages.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = 24.dp,
+                            end = 24.dp,
+                            top = topBarBodyHeight + 12.dp,
+                            bottom = composerBodyHeight + animatedImeBottom + 28.dp,
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.sunshine_avatar),
+                        contentDescription = null,
+                        modifier = Modifier.size(96.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = stringResource(R.string.chat_sunshine_greeting),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = SunshineOnSurface,
+                    )
+                }
                 SunshineExtensionSlot(
                     slot = SunshineExtensionSlotChatEmpty,
                     modifier = Modifier

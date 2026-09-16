@@ -242,6 +242,9 @@ class SunshineViewModel(
         }
 
         viewModelScope.launch {
+            // Wait for history before selecting the startup draft so loading cannot
+            // restore the previous selection. Configuration changes retain this ViewModel.
+            chatStateStore.selectDraftSession()
             var didReceiveChatState = false
             chatStateStore.state.collect { persisted ->
                 if (!didReceiveChatState && persisted.sessions.isEmpty() && persisted.currentSessionId == DraftSessionId) {

@@ -5,6 +5,9 @@ import android.os.Build
 import com.highsockscapital.sunshine.termux.TermuxBashTool
 import com.highsockscapital.sunshine.termux.TermuxContract
 import com.highsockscapital.sunshine.termux.TermuxSetupIssue
+import com.highsockscapital.sunshine.termux.TermuxRuntimePackages
+import kotlinx.coroutines.CancellationException
+import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.InputStream
@@ -215,7 +218,39 @@ class RootSetupController(
             )
         }
 
+        // Dispatch through Termux so apt runs as its app user, not as root.
         bashTool.setRootBackgroundLaunchEnabled(true)
+        try {
+            val packages = JSONObject(
+                bashTool.executeCommand(
+                    command = TermuxRuntimePackages.installScript,
+                    awaitTimeoutMillis = TermuxRuntimePackages.TimeoutMillis,
+                ),
+            )
+            check(packages.optBoolean("ok")) {
+                listOf(
+                    packages.optString("errmsg"),
+                    packages.optString("stderr"),
+                    packages.optString("stdout"),
+                ).filter { it.isNotBlank() }.joinToString("\n")
+                    .ifBlank { "Termux package setup failed without diagnostic output." }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            diagnosticLogger.exception(
+                category = "root_setup",
+                event = "runtime_package_setup_failed",
+                throwable = failure,
+            )
+            return@withContext RootSetupState(
+                issue = RootSetupIssue.Failed,
+                detail = "Termux runtime package setup failed: ${failure.message}",
+                rootAvailable = true,
+                suPath = suPath,
+                lastUpdatedMillis = System.currentTimeMillis(),
+            )
+        }
         diagnosticLogger.event(
             category = "root_setup",
             event = "configure_succeeded",

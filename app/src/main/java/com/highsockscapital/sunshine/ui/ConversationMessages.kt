@@ -827,6 +827,17 @@ private fun UserTextBubble(
 }
 
 @Composable
+private fun SunshineAssistantAvatar() {
+    Image(
+        painter = painterResource(R.drawable.sunshine_avatar),
+        contentDescription = stringResource(R.string.app_name),
+        modifier = Modifier.size(48.dp),
+        alignment = Alignment.TopStart,
+        contentScale = ContentScale.Fit,
+    )
+}
+
+@Composable
 private fun AssistantMessageBlock(
     message: ChatMessage,
     actionsEnabled: Boolean,
@@ -849,6 +860,7 @@ private fun AssistantMessageBlock(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        SunshineAssistantAvatar()
         val context = LocalContext.current
         val replayToolInvocations = message.replayToolInvocations()
         val agentModeFrames = remember(context, replayToolInvocations) {
@@ -1015,6 +1027,7 @@ fun ConversationAssistantGroupBubble(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            SunshineAssistantAvatar()
             AgentModeReplayPanel(
                 frames = groupAgentModeFrames,
                 stateKey = "agent-mode-replay-${messages.first().responseGroupId ?: messages.first().id}",
@@ -1061,6 +1074,7 @@ fun ConversationAssistantGroupBubble(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        SunshineAssistantAvatar()
         if (!shouldFoldWorkBeforeFinalText && !hasReasoningTrace) thoughtDurationMillis?.let { duration ->
             Text(
                 text = stringResource(R.string.chat_thought_for_duration, formatThoughtDuration(duration)),
@@ -3857,12 +3871,7 @@ private fun formatReasoningTraceDoneLabel(trace: ReasoningTrace): String {
     val startedAt = trace.startedAtMillis.takeIf { it > 0L }
     val endedAt = trace.completedAtMillis ?: System.currentTimeMillis()
     val duration = startedAt?.let { formatThoughtDuration((endedAt - it).coerceAtLeast(1L)) } ?: "0s"
-    val toolCount = trace.toolInvocations.size
-    return if (toolCount > 0) {
-        stringResource(R.string.chat_thought_for_duration_and_tools, duration, toolCount)
-    } else {
-        stringResource(R.string.chat_thought_for_duration, duration)
-    }
+    return stringResource(R.string.chat_thought_for_duration, duration)
 }
 
 @Composable
