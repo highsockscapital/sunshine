@@ -26,9 +26,9 @@ import com.highsockscapital.sunshine.ui.ReasoningTrace
 import com.highsockscapital.sunshine.ui.sanitizedForReasoningOff
 import com.highsockscapital.sunshine.ui.syncActiveBranches
 import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -187,7 +187,7 @@ class SessionExecutionManager(
     private val currentExtensionsState = MutableStateFlow(AgentExtensionsState())
     private val _executionStates = MutableStateFlow<Map<String, SessionExecutionState>>(emptyMap())
     private val _turnEvents = MutableSharedFlow<SessionTurnEvent>(extraBufferCapacity = 8)
-    private val executionHandles = ConcurrentHashMap<String, SessionExecutionHandle>()
+    private val executionHandles = SessionExecutionRegistry<SessionExecutionHandle>()
     private val queuedTurnRequestBuilder = QueuedTurnRequestBuilder(chatStateStore)
 
     val executionStates: StateFlow<Map<String, SessionExecutionState>> = _executionStates.asStateFlow()
@@ -275,12 +275,21 @@ class SessionExecutionManager(
             ),
         )
 
-        handle.job = scope.launch {
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             runSession(
                 handle = handle,
                 initialRequest = request,
             )
         }
+        handle.job = job
+        executionHandles.releaseOnCompletion(request.sessionId, handle, job) {
+            updateExecutionState(request.sessionId) {
+                SessionExecutionState(sessionId = request.sessionId)
+            }
+        }
+        // Install completion cleanup before starting, covering cancellation before launch.
+        if (handle.pauseRequested) job.cancel(CancellationException("Paused by user."))
+        else job.start()
     }
 
     fun submitFollowUp(
@@ -295,6 +304,7 @@ class SessionExecutionManager(
             message = message,
         )
         synchronized(handle.lock) {
+            if (handle.pauseRequested) return false
             when (mode) {
                 SessionFollowUpMode.Queue -> handle.queuedInputs += pending
                 SessionFollowUpMode.Steer -> handle.steerInputs += pending
@@ -310,8 +320,10 @@ class SessionExecutionManager(
 
     fun pauseSession(sessionId: String): ChatSession? {
         val handle = executionHandles[sessionId] ?: return null
-        if (handle.pauseRequested) return null
-        handle.pauseRequested = true
+        synchronized(handle.lock) {
+            if (handle.pauseRequested) return null
+            handle.pauseRequested = true
+        }
         val snapshot = _executionStates.value[sessionId]
         val runningRunIds = snapshot?.pendingToolInvocations?.let(::extractActiveManagedRunIds).orEmpty()
         val completion = finalizePausedTurn(
@@ -323,21 +335,32 @@ class SessionExecutionManager(
             runCatching { chatStateStore.flush() }
         }
         handle.pauseFinalized = true
-        executionHandles.remove(sessionId, handle)
-        updateExecutionState(sessionId) {
-            it.copy(
-                sessionId = sessionId,
-                isRunning = false,
-                pendingToolInvocations = emptyList(),
-                pendingResponseBlocks = emptyList(),
-                pendingAssistantText = "",
-                pendingStatusText = "",
-                pendingStatusDetail = "",
-                pendingInputs = emptyList(),
-                activeResponseGroupId = null,
-                activeTurnStartedAtMillis = null,
-            )
+        // Keep ownership until the cancelled job and its children finish cleanup.
+        // Perform the state transition under the registry lock so a naturally
+        // finishing job cannot interleave between the ownership check and the
+        // "Stopping" update.
+        var stillOwned = false
+        executionHandles.performIfOwned(sessionId, handle) {
+            stillOwned = true
+            // No job yet (validation window): nothing to stop, and the validation
+            // failure path owns any state changes.
+            if (handle.job == null) return@performIfOwned
+            updateExecutionState(sessionId) {
+                it.copy(
+                    sessionId = sessionId,
+                    isRunning = true,
+                    pendingToolInvocations = emptyList(),
+                    pendingResponseBlocks = emptyList(),
+                    pendingAssistantText = "",
+                    pendingStatusText = "Stopping…",
+                    pendingStatusDetail = "",
+                    pendingInputs = emptyList(),
+                    activeResponseGroupId = null,
+                    activeTurnStartedAtMillis = null,
+                )
+            }
         }
+        if (!stillOwned) return null
         _turnEvents.tryEmit(completion.toTurnEvent(sessionId))
         handle.job?.cancel(CancellationException("Paused by user."))
         if (runningRunIds.isNotEmpty()) {
@@ -462,22 +485,8 @@ class SessionExecutionManager(
         } finally {
             deactivateAssistantCheckpoint(handle, handle.activeResponseIdentity)
             clearPendingInputs(handle)
-            if (executionHandles.remove(handle.sessionId, handle)) {
-                updateExecutionState(handle.sessionId) {
-                    it.copy(
-                        sessionId = handle.sessionId,
-                        isRunning = false,
-                        pendingToolInvocations = emptyList(),
-                        pendingResponseBlocks = emptyList(),
-                        pendingAssistantText = "",
-                        pendingStatusText = "",
-                        pendingStatusDetail = "",
-                        pendingInputs = emptyList(),
-                        activeResponseGroupId = null,
-                        activeTurnStartedAtMillis = null,
-                    )
-                }
-            }
+            // Ownership releases via the Job completion handler registered in startTurn,
+            // after this finally block and cancellation child-cleanup finish.
 
             if (
                 !handle.pauseRequested &&
