@@ -822,10 +822,6 @@ private fun SunshineAppContent(
                 selectedSessionId = uiState.currentSessionId,
                 sessionExecutionStates = uiState.sessionExecutionStates,
                 unviewedCompletedSessionIds = uiState.unviewedCompletedSessionIds,
-                onNewChat = {
-                    viewModel.startNewChat()
-                    scope.launch { drawerState.close() }
-                },
                 onSessionSelected = { sessionId ->
                     viewModel.selectSession(sessionId)
                     scope.launch { drawerState.close() }

@@ -100,6 +100,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -150,7 +151,6 @@ import com.highsockscapital.sunshine.data.quickActionLabel
 import com.highsockscapital.sunshine.data.thinkingCatalogKey
 import com.highsockscapital.sunshine.termux.TermuxSetupState
 import com.highsockscapital.sunshine.ui.theme.SunshineBackground
-import com.highsockscapital.sunshine.ui.theme.SunshineBackgroundGradientTop
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurface
 import com.highsockscapital.sunshine.ui.theme.SunshineOutline
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurfaceVariant
@@ -191,7 +191,6 @@ private sealed interface ConversationListItem {
     }
 }
 
-private val ConversationTopFadeHeight = 42.dp
 private val ComposerCardShape = RoundedCornerShape(26.dp)
 private val ComposerFocusedCardShape = RoundedCornerShape(28.dp)
 private val ComposerPlusMenuMaxHeight = 372.dp
@@ -249,24 +248,6 @@ internal fun hasVisibleReasoningStatus(trace: ReasoningTrace): Boolean =
         trace.rawText.isNotBlank() ||
         trace.hasTimelineContent ||
         trace.completedAtMillis != null
-
-private fun topOverlayBodyGradient(): Brush = Brush.verticalGradient(
-    colorStops = arrayOf(
-        0.0f to SunshineBackground.copy(alpha = 0.98f),
-        0.28f to SunshineBackground.copy(alpha = 0.92f),
-        0.58f to SunshineBackground.copy(alpha = 0.52f),
-        0.82f to SunshineBackground.copy(alpha = 0.18f),
-        1.0f to Color.Transparent,
-    )
-)
-
-private fun topOverlayTailGradient(): Brush = Brush.verticalGradient(
-    colorStops = arrayOf(
-        0.0f to SunshineBackground.copy(alpha = 0.10f),
-        0.42f to SunshineBackground.copy(alpha = 0.04f),
-        1.0f to Color.Transparent,
-    )
-)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -370,29 +351,10 @@ fun ConversationScreen(
     }
     var previewAttachment by remember { mutableStateOf<ChatAttachment?>(null) }
     var shouldAutoFollow by rememberSaveable(conversationStateKey) { mutableStateOf(true) }
-    var topBarBodyHeightPx by remember { mutableIntStateOf(0) }
+    var conversationViewportHeightPx by remember { mutableIntStateOf(0) }
     var composerBodyHeightPx by remember { mutableIntStateOf(0) }
     var pendingGenerationHeightPx by remember { mutableIntStateOf(0) }
     var composerFocused by remember { mutableStateOf(false) }
-    val density = LocalDensity.current
-    val fallbackTopBarBodyHeight = with(density) {
-        WindowInsets.statusBars.getTop(this).toDp() + 68.dp
-    }
-    val topBarBodyHeight = with(density) {
-        if (topBarBodyHeightPx > 0) topBarBodyHeightPx.toDp() else fallbackTopBarBodyHeight
-    }
-    val composerBodyHeight = with(density) {
-        if (composerBodyHeightPx > 0) composerBodyHeightPx.toDp() else 112.dp
-    }
-    val imeBottom = with(density) {
-        WindowInsets.ime.getBottom(this).toDp()
-    }
-    val animatedImeBottom by animateDpAsState(
-        targetValue = imeBottom,
-        animationSpec = tween(durationMillis = 260, easing = ChatGptMotionEasing),
-        label = "conversation_empty_ime_bottom",
-    )
-    val animatedImeBottomPx = with(density) { animatedImeBottom.roundToPx() }
     val conversationScrollConnection = remember(listState) {
         object : NestedScrollConnection {
             override fun onPostScroll(
@@ -420,7 +382,7 @@ fun ConversationScreen(
         }
     }
 
-    LaunchedEffect(listState, shouldAutoFollow, animatedImeBottomPx, composerBodyHeightPx) {
+    LaunchedEffect(listState, shouldAutoFollow, conversationViewportHeightPx, composerBodyHeightPx) {
         if (!shouldAutoFollow) return@LaunchedEffect
         snapshotFlow {
             val layoutInfo = listState.layoutInfo
@@ -511,7 +473,7 @@ fun ConversationScreen(
     LaunchedEffect(
         autoFollowContentKey,
         pendingGenerationHeightPx,
-        animatedImeBottomPx,
+        conversationViewportHeightPx,
         composerBodyHeightPx,
         shouldAutoFollow,
     ) {
@@ -526,16 +488,71 @@ fun ConversationScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = SunshineBackground,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            ConversationHeader(
+                modelOptions = modelOptions,
+                modelCatalogInfo = modelCatalogInfo,
+                selectedModelKey = selectedModelKey,
+                reasoningEffort = reasoningEffort,
+                thinkingLevelsByProviderModel = thinkingLevelsByProviderModel,
+                thinkingLevelClampsByProviderModel = thinkingLevelClampsByProviderModel,
+                onMenu = onMenu,
+                onModelSelected = onModelSelected,
+                onModelSelectorOpened = onModelSelectorOpened,
+                onReasoningEffortSelected = onReasoningEffortSelected,
+                onNewChat = onNewChat,
+            )
+        },
+        bottomBar = {
+            ConversationFooter(
+                conversationStateKey = conversationStateKey,
+                onBodyHeightChanged = { composerBodyHeightPx = it },
+                value = inputValue,
+                attachments = draftAttachments,
+                availableSkills = availableSkills,
+                availableMcpServers = availableMcpServers,
+                selectedSkillIds = selectedSkillIds,
+                selectedMcpServerIds = selectedMcpServerIds,
+                agentModeAvailable = agentModeAvailable,
+                agentModeSelected = agentModeSelected,
+                chromeAvailable = chromeAvailable,
+                chromeSelected = chromeSelected,
+                isEditing = isEditing,
+                termuxSetupState = termuxSetupState,
+                isSending = isSending,
+                showTermuxSetupNotice = showTermuxSetupNotice,
+                compactSuggestionText = compactSuggestionText,
+                onValueChange = onInputChanged,
+                onRemoveAttachment = onRemoveDraftAttachment,
+                onSetSkillSelected = onSetSkillSelected,
+                onSetMcpServerSelected = onSetMcpServerSelected,
+                onSetAgentModeSelected = onSetAgentModeSelected,
+                onSetChromeSelected = onSetChromeSelected,
+                onCancelEdit = onCancelEdit,
+                onPickImages = onPickImages,
+                onPickFiles = onPickFiles,
+                onRequestTermuxPermission = onRequestTermuxPermission,
+                onOpenAppPermissions = onOpenAppPermissions,
+                onOpenTermuxSettings = onOpenTermuxSettings,
+                onOpenTermux = onOpenTermux,
+                onInstallTermux = onInstallTermux,
+                onRefreshTermuxSetup = onRefreshTermuxSetup,
+                onPauseGeneration = onPauseGeneration,
+                onDismissTermuxSetupNotice = onDismissTermuxSetupNotice,
+                onFocusChanged = { composerFocused = it },
+                onSend = onSend,
+                onQueueFollowUp = onQueueFollowUp,
+                onSteerFollowUp = onSteerFollowUp,
+            )
+        },
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(SunshineBackgroundGradientTop, SunshineBackground, SunshineSurface)
-                    )
-                )
+                .background(SunshineBackground)
                 .padding(innerPadding)
+                .clipToBounds()
+                .onSizeChanged { conversationViewportHeightPx = it.height }
         ) {
             if (messages.isEmpty()) {
                 Column(
@@ -544,8 +561,8 @@ fun ConversationScreen(
                         .padding(
                             start = 24.dp,
                             end = 24.dp,
-                            top = topBarBodyHeight + 12.dp,
-                            bottom = composerBodyHeight + animatedImeBottom + 28.dp,
+                            top = 12.dp,
+                            bottom = 16.dp,
                         ),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -571,7 +588,7 @@ fun ConversationScreen(
                         .padding(
                             start = 20.dp,
                             end = 20.dp,
-                            top = topBarBodyHeight + 12.dp,
+                            top = 12.dp,
                         ),
                 )
             } else {
@@ -583,8 +600,8 @@ fun ConversationScreen(
                     contentPadding = PaddingValues(
                         start = 20.dp,
                         end = 20.dp,
-                        top = topBarBodyHeight + 10.dp,
-                        bottom = composerBodyHeight + animatedImeBottom + 28.dp,
+                        top = 12.dp,
+                        bottom = 16.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                 ) {
@@ -727,64 +744,6 @@ fun ConversationScreen(
                 }
             }
 
-            ConversationTopOverlay(
-                modifier = Modifier.align(Alignment.TopCenter),
-                onBodyHeightChanged = { topBarBodyHeightPx = it },
-                modelOptions = modelOptions,
-                modelCatalogInfo = modelCatalogInfo,
-                selectedModelKey = selectedModelKey,
-                reasoningEffort = reasoningEffort,
-                thinkingLevelsByProviderModel = thinkingLevelsByProviderModel,
-                thinkingLevelClampsByProviderModel = thinkingLevelClampsByProviderModel,
-                onMenu = onMenu,
-                onModelSelected = onModelSelected,
-                onModelSelectorOpened = onModelSelectorOpened,
-                onReasoningEffortSelected = onReasoningEffortSelected,
-                onNewChat = onNewChat,
-            )
-
-            ConversationComposerOverlay(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                conversationStateKey = conversationStateKey,
-                onBodyHeightChanged = { composerBodyHeightPx = it },
-                value = inputValue,
-                attachments = draftAttachments,
-                availableSkills = availableSkills,
-                availableMcpServers = availableMcpServers,
-                selectedSkillIds = selectedSkillIds,
-                selectedMcpServerIds = selectedMcpServerIds,
-                agentModeAvailable = agentModeAvailable,
-                agentModeSelected = agentModeSelected,
-                chromeAvailable = chromeAvailable,
-                chromeSelected = chromeSelected,
-                isEditing = isEditing,
-                termuxSetupState = termuxSetupState,
-                isSending = isSending,
-                showTermuxSetupNotice = showTermuxSetupNotice,
-                compactSuggestionText = compactSuggestionText,
-                onValueChange = onInputChanged,
-                onRemoveAttachment = onRemoveDraftAttachment,
-                onSetSkillSelected = onSetSkillSelected,
-                onSetMcpServerSelected = onSetMcpServerSelected,
-                onSetAgentModeSelected = onSetAgentModeSelected,
-                onSetChromeSelected = onSetChromeSelected,
-                onCancelEdit = onCancelEdit,
-                onPickImages = onPickImages,
-                onPickFiles = onPickFiles,
-                onRequestTermuxPermission = onRequestTermuxPermission,
-                onOpenAppPermissions = onOpenAppPermissions,
-                onOpenTermuxSettings = onOpenTermuxSettings,
-                onOpenTermux = onOpenTermux,
-                onInstallTermux = onInstallTermux,
-                onRefreshTermuxSetup = onRefreshTermuxSetup,
-                onPauseGeneration = onPauseGeneration,
-                onDismissTermuxSetupNotice = onDismissTermuxSetupNotice,
-                onFocusChanged = { composerFocused = it },
-                onSend = onSend,
-                onQueueFollowUp = onQueueFollowUp,
-                onSteerFollowUp = onSteerFollowUp,
-            )
-
             previewAttachment?.let { attachment ->
                 AttachmentPreviewDialog(
                     attachment = attachment,
@@ -806,9 +765,8 @@ private fun LazyListState.isAtConversationBottom(): Boolean {
 }
 
 @Composable
-private fun ConversationTopOverlay(
+private fun ConversationHeader(
     modifier: Modifier = Modifier,
-    onBodyHeightChanged: (Int) -> Unit,
     modelOptions: List<ProviderModelOption>,
     modelCatalogInfo: Map<String, ModelCatalogInfo>,
     selectedModelKey: String,
@@ -827,8 +785,7 @@ private fun ConversationTopOverlay(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(topOverlayBodyGradient())
-                .onSizeChanged { onBodyHeightChanged(it.height) },
+                .background(SunshineBackground),
         ) {
             Column {
                 ConversationTopBar(
@@ -850,12 +807,6 @@ private fun ConversationTopOverlay(
                 )
             }
         }
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(ConversationTopFadeHeight)
-                .background(topOverlayTailGradient())
-        )
     }
 }
 
@@ -882,6 +833,7 @@ private fun ConversationTopBar(
         newChatDescription = stringResource(R.string.common_new_chat),
         onMenu = onMenu,
         onNewChat = onNewChat,
+        showMenu = false,
     ) {
         ConversationModelSelector(
             options = modelOptions,
@@ -1524,32 +1476,8 @@ private fun PendingAssistantTimeline(
                 onDetachSurface = onDetachAgentModePreviewSurface,
             )
         } else if (!chromePreviewVisible && visiblePendingInvocations.isNotEmpty()) {
-            val pendingToolsStartedAtMillis = visiblePendingInvocations
-                .mapNotNull { it.startedAtMillis.takeIf { timestamp -> timestamp > 0L } }
-                .plus(listOfNotNull(activeTurnStartedAtMillis?.takeIf { it > 0L }))
-                .filter { it >= MinimumWallClockMillis }
-                .minOrNull()
-            val pendingToolsFallbackStartedRealtimeMillis = remember(pendingToolInvocationStateKey) {
-                SystemClock.elapsedRealtime()
-            }
-            val pendingToolsDurationMillis by produceState(
-                initialValue = runningWorkDurationMillis(
-                    startedAtMillis = pendingToolsStartedAtMillis,
-                    fallbackStartedRealtimeMillis = pendingToolsFallbackStartedRealtimeMillis,
-                ),
-                pendingToolsStartedAtMillis,
-                pendingToolsFallbackStartedRealtimeMillis,
-            ) {
-                while (true) {
-                    value = runningWorkDurationMillis(
-                        startedAtMillis = pendingToolsStartedAtMillis,
-                        fallbackStartedRealtimeMillis = pendingToolsFallbackStartedRealtimeMillis,
-                    )
-                    kotlinx.coroutines.delay(1_000L)
-                }
-            }
             AgentWorkingStatusHeader(
-                title = formatWorkedSummaryTitle(pendingToolsDurationMillis),
+                title = stringResource(R.string.chat_thinking),
             )
             ToolInvocationList(
                 toolInvocations = visiblePendingInvocations,
@@ -1589,29 +1517,6 @@ private fun PendingAssistantTimeline(
         return
     }
 
-    val workStartedAtMillis = listOfNotNull(
-        blocks.workStartedAtMillis(),
-        activeTurnStartedAtMillis?.takeIf { it >= MinimumWallClockMillis },
-    ).minOrNull()
-    val fallbackWorkStartedRealtimeMillis = remember(activeTurnStartedAtMillis) {
-        SystemClock.elapsedRealtime()
-    }
-    val workingDurationMillis by produceState(
-        initialValue = runningWorkDurationMillis(
-            startedAtMillis = workStartedAtMillis,
-            fallbackStartedRealtimeMillis = fallbackWorkStartedRealtimeMillis,
-        ),
-        workStartedAtMillis,
-        fallbackWorkStartedRealtimeMillis,
-    ) {
-        while (true) {
-            value = runningWorkDurationMillis(
-                startedAtMillis = workStartedAtMillis,
-                fallbackStartedRealtimeMillis = fallbackWorkStartedRealtimeMillis,
-            )
-            kotlinx.coroutines.delay(1_000L)
-        }
-    }
     val shouldShowWorkingDisclosure = blocks.any { block ->
         when (block) {
             is AssistantResponseBlock.Text -> block.text.isNotBlank()
@@ -1622,9 +1527,10 @@ private fun PendingAssistantTimeline(
     }
 
     if (shouldShowWorkingDisclosure) {
-        AgentWorkingStatusHeader(
-            title = formatWorkedSummaryTitle(workingDurationMillis),
-        )
+        // The trace already provides a one-tap Brewing entry into its details.
+        if (blocks.none { it is AssistantResponseBlock.Reasoning && hasVisibleReasoningStatus(it.trace) }) {
+            AgentWorkingStatusHeader(title = stringResource(R.string.chat_thinking))
+        }
         blocks.forEachIndexed { index, block ->
             if (agentModePreviewVisible && index == firstAgentModeBlockIndex) {
                 AgentModePreviewPanel(
@@ -2132,7 +2038,7 @@ private fun PendingSessionInputBubble(
 }
 
 @Composable
-private fun ConversationComposerOverlay(
+private fun ConversationFooter(
     modifier: Modifier = Modifier,
     conversationStateKey: String,
     onBodyHeightChanged: (Int) -> Unit,
@@ -2183,6 +2089,7 @@ private fun ConversationComposerOverlay(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .background(SunshineBackground)
             .windowInsetsPadding(WindowInsets.ime.only(WindowInsetsSides.Bottom))
             .navigationBarsPadding()
             .padding(bottom = bottomLift),

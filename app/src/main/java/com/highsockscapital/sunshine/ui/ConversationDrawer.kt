@@ -9,7 +9,6 @@ fun ConversationDrawer(
     selectedSessionId: String,
     sessionExecutionStates: Map<String, SessionExecutionState>,
     unviewedCompletedSessionIds: Set<String>,
-    onNewChat: () -> Unit,
     onSessionSelected: (String) -> Unit,
     onRenameSession: (String, String) -> Unit,
     onExportSession: (ChatSession) -> Unit,
@@ -31,7 +30,6 @@ fun ConversationDrawer(
             )
         },
         selectedSessionId = selectedSessionId,
-        onNewChat = onNewChat,
         onSessionSelected = onSessionSelected,
         onRenameSession = onRenameSession,
         onExportSession = { sessionId ->

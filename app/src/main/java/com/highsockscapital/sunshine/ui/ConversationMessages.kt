@@ -851,9 +851,8 @@ private fun AssistantMessageBlock(
     onDelete: () -> Unit,
     sessionTotalTokens: Long?,
 ) {
-    val shouldFoldWorkBeforeFinalText = message.text.isNotBlank() &&
-        (message.reasoningTrace != null ||
-            message.thoughtDurationMillis != null ||
+    val shouldFoldWorkBeforeFinalText = message.reasoningTrace == null && message.text.isNotBlank() &&
+        (message.thoughtDurationMillis != null ||
             message.toolInvocations.isNotEmpty() ||
             message.attachments.isNotEmpty())
     Column(
@@ -1059,7 +1058,7 @@ fun ConversationAssistantGroupBubble(
         }
         return
     }
-    val shouldFoldWorkBeforeFinalText = finalTextMessageIndex > 0
+    val shouldFoldWorkBeforeFinalText = !hasReasoningTrace && finalTextMessageIndex > 0
     val workMessages = if (shouldFoldWorkBeforeFinalText) {
         messages.take(finalTextMessageIndex)
     } else {
@@ -2052,18 +2051,11 @@ fun ReasoningTraceStatus(
     onOpenLink: (String) -> Unit = {},
 ) {
     var sheetVisible by remember(trace.id) { mutableStateOf(false) }
-    val latestDetail = remember(trace.latestStatusText, trace.chunks) {
-        trace.latestStatusText.ifBlank {
-            trace.chunks.lastOrNull { it.detail.isNotBlank() || it.title.isNotBlank() }
-            ?.let { chunk -> chunk.detail.ifBlank { chunk.title } }
-            .orEmpty()
-        }
-    }
     val completed = trace.completedAtMillis != null
     val statusText = if (completed) {
         formatReasoningTraceDoneLabel(trace)
     } else {
-        latestDetail
+        stringResource(R.string.chat_thinking)
     }
 
     Column(
@@ -2078,11 +2070,6 @@ fun ReasoningTraceStatus(
                 text = statusText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = SunshineOnSurfaceVariant,
-            )
-
-            statusText.isNotBlank() -> ReasoningTypewriterText(
-                text = statusText,
-                styleColor = SunshineOnSurfaceVariant,
             )
 
             else -> ShimmerStatusText(
@@ -3764,7 +3751,7 @@ private fun formatThoughtDuration(durationMillis: Long): String {
 
 @Composable
 fun formatWorkedSummaryTitle(durationMillis: Long): String =
-    stringResource(R.string.chat_working_for_duration, formatThoughtDuration(durationMillis))
+    stringResource(R.string.chat_thought_for_duration, formatThoughtDuration(durationMillis))
 
 fun workDurationMillisForMessages(
     messages: List<ChatMessage>,

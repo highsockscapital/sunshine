@@ -43,7 +43,7 @@ fun SunshineConversationTopBarFrame(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 15.dp, vertical = 12.dp),
+            .padding(start = 15.dp, top = 6.dp, end = 15.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (showMenu) {
@@ -60,7 +60,7 @@ fun SunshineConversationTopBarFrame(
             modifier = Modifier
                 .weight(1f)
                 .padding(
-                    start = if (showMenu) 12.dp else 5.dp,
+                    start = if (showMenu) 12.dp else 0.dp,
                     end = 12.dp,
                 ),
             content = centerContent,

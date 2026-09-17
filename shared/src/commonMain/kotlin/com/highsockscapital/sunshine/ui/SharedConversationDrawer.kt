@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -52,15 +51,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -70,7 +67,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import com.highsockscapital.sunshine.shared.resources.Res
-import com.highsockscapital.sunshine.shared.resources.common_chat
 import com.highsockscapital.sunshine.shared.resources.common_delete
 import com.highsockscapital.sunshine.shared.resources.common_export
 import com.highsockscapital.sunshine.shared.resources.common_new_chat
@@ -84,7 +80,6 @@ import com.highsockscapital.sunshine.ui.theme.SunshineOutline
 import com.highsockscapital.sunshine.ui.theme.SunshineOnSurfaceVariant
 import com.highsockscapital.sunshine.ui.theme.SunshineBackground
 import com.highsockscapital.sunshine.ui.theme.SunshineScrim
-import com.highsockscapital.sunshine.ui.theme.SunshinePrimary
 import com.highsockscapital.sunshine.ui.theme.SunshineSidebarBackground
 import com.highsockscapital.sunshine.ui.theme.SunshineSurface
 import com.highsockscapital.sunshine.ui.theme.SunshineSurfaceHigh
@@ -103,13 +98,10 @@ enum class SharedConversationIndicator {
     UnviewedComplete,
 }
 
-private val SharedDrawerOverlayFadeHeight = 18.dp
-
 @Composable
 fun SunshineConversationDrawer(
     sessions: List<SharedConversationSummary>,
     selectedSessionId: String,
-    onNewChat: () -> Unit,
     onSessionSelected: (String) -> Unit,
     onRenameSession: (String, String) -> Unit,
     onExportSession: (String) -> Unit,
@@ -122,13 +114,6 @@ fun SunshineConversationDrawer(
 ) {
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var overlayHeightPx by remember { mutableIntStateOf(0) }
-    var footerHeightPx by remember { mutableIntStateOf(0) }
-    val density = LocalDensity.current
-    val overlayHeight = with(density) {
-        if (overlayHeightPx > 0) overlayHeightPx.toDp() else 132.dp
-    }
-    val listBottomPadding = 96.dp + with(density) { footerHeightPx.toDp() }
     val filteredSessions = remember(sessions, searchQuery) {
         val query = searchQuery.trim().lowercase()
         if (query.isBlank()) sessions else sessions.filter { it.title.lowercase().contains(query) }
@@ -146,72 +131,11 @@ fun SunshineConversationDrawer(
             RoundedCornerShape(topEnd = 30.dp, bottomEnd = 30.dp)
         },
     ) {
-        Box(modifier = Modifier.fillMaxSize().padding(bottom = 18.dp)) {
-            if (filteredSessions.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = overlayHeight - SharedDrawerOverlayFadeHeight,
-                            bottom = listBottomPadding,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (sessions.isEmpty()) {
-                                Res.string.chat_no_conversations_yet
-                            } else {
-                                Res.string.search_no_chats_match
-                            }
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = SunshineOnSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-                    )
-                    extraContent(dismissSearch)
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = overlayHeight - SharedDrawerOverlayFadeHeight,
-                        bottom = listBottomPadding,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    items(filteredSessions, key = { it.id }) { session ->
-                        SharedDrawerSessionRow(
-                            session = session,
-                            selected = session.id == selectedSessionId,
-                            onClick = {
-                                dismissSearch()
-                                onSessionSelected(session.id)
-                            },
-                            onRename = { onRenameSession(session.id, it) },
-                            onExport = { onExportSession(session.id) },
-                            onDelete = { onDeleteSession(session.id) },
-                        )
-                    }
-                    item(key = "sunshine-extra-drawer-content") {
-                        Column(modifier = Modifier.padding(top = 10.dp)) {
-                            extraContent(dismissSearch)
-                        }
-                    }
-                }
-            }
-
+        Column(modifier = Modifier.fillMaxSize().padding(bottom = 18.dp)) {
             Column(
                 modifier = Modifier
-                    .align(Alignment.TopStart)
                     .fillMaxWidth()
-                    .background(sharedDrawerOverlayBodyGradient(drawerBackground))
-                    .onSizeChanged { overlayHeightPx = it.height },
+                    .background(drawerBackground),
             ) {
                 Column(
                     modifier = Modifier
@@ -271,48 +195,82 @@ fun SunshineConversationDrawer(
                 ) {
                     headerContent()
                 }
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(SharedDrawerOverlayFadeHeight)
-                        .background(sharedDrawerOverlayTailGradient(drawerBackground)),
-                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .clipToBounds(),
+            ) {
+                if (filteredSessions.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = 16.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(
+                                if (sessions.isEmpty()) {
+                                    Res.string.chat_no_conversations_yet
+                                } else {
+                                    Res.string.search_no_chats_match
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = SunshineOnSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                        )
+                        extraContent(dismissSearch)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = 16.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        items(filteredSessions, key = { it.id }) { session ->
+                            SharedDrawerSessionRow(
+                                session = session,
+                                selected = session.id == selectedSessionId,
+                                onClick = {
+                                    dismissSearch()
+                                    onSessionSelected(session.id)
+                                },
+                                onRename = { onRenameSession(session.id, it) },
+                                onExport = { onExportSession(session.id) },
+                                onDelete = { onDeleteSession(session.id) },
+                            )
+                        }
+                        item(key = "sunshine-extra-drawer-content") {
+                            Column(modifier = Modifier.padding(top = 10.dp)) {
+                                extraContent(dismissSearch)
+                            }
+                        }
+                    }
+                }
             }
 
             Column(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
+                    .background(drawerBackground)
                     .navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
-                    .offset(y = (-86).dp)
-                    .onSizeChanged { footerHeightPx = it.height },
+                    .padding(horizontal = 16.dp),
             ) {
                 footerContent()
-            }
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(end = 18.dp, bottom = 18.dp)
-                    .border(1.dp, SunshineOutline, RoundedCornerShape(999.dp))
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(SunshinePrimary)
-                    .clickable {
-                        dismissSearch()
-                        onNewChat()
-                    }
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Icon(LucideIcons.SquarePen, null, tint = Color.White, modifier = Modifier.size(17.dp))
-                Text(
-                    text = stringResource(Res.string.common_chat),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
-                    color = Color.White,
-                )
             }
         }
     }
@@ -541,21 +499,3 @@ private fun SharedDrawerActionRow(
         )
     }
 }
-
-private fun sharedDrawerOverlayBodyGradient(baseColor: Color): Brush = Brush.verticalGradient(
-    colorStops = arrayOf(
-        0.0f to baseColor.copy(alpha = 0.94f),
-        0.20f to baseColor.copy(alpha = 0.86f),
-        0.48f to baseColor.copy(alpha = 0.54f),
-        0.78f to baseColor.copy(alpha = 0.18f),
-        1.0f to Color.Transparent,
-    )
-)
-
-private fun sharedDrawerOverlayTailGradient(baseColor: Color): Brush = Brush.verticalGradient(
-    colorStops = arrayOf(
-        0.0f to baseColor.copy(alpha = 0.18f),
-        0.46f to baseColor.copy(alpha = 0.06f),
-        1.0f to Color.Transparent,
-    )
-)
